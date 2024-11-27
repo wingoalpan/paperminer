@@ -1,0 +1,78 @@
+.dash-tooltip {
+    position: fixed !important;
+    z-index: 1000 !important;
+}
+
+#papers {
+  table-layout: fixed;
+}
+
+#papers tbody tr td:nth-child(1) {
+  width: 8%;
+}
+
+#papers tbody tr td:nth-child(2) {
+  width: 35%;
+}
+
+#papers tbody tr td:nth-child(3) {
+  width: 12%;
+}
+
+#papers tbody tr td:nth-child(4) {
+  width: 45%;
+}
+
+#refs {
+  table-layout: fixed;
+}
+
+#papers td:nth-child(1) {
+  width: 10%;
+}
+
+#papers td:nth-child(2) {
+  width: 25%;
+}
+
+#papers td:nth-child(3) {
+  width: 65%;
+}
+
+.div1 {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.div2 {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.div3{
+    display: inline-block;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.div-paper-label-content{
+    display: inline-block;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.Select-input{
+    height: 20;
+    line-height: 1;
+}
+
+.Select-control{
+    height: 20;
+    line-height: 20;
+}
+
+.Select-placeholder{
+    height: 20;
+    line-height: 1;
+    vertical-align: middle;
+}
