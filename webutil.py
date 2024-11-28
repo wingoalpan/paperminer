@@ -299,18 +299,27 @@ def update_rows_dict(self, table_name):
         tbl_man.update_rows_dict()
 
 
+def add_favorite(self, login, paper_id):
+    create_at = cm.time_str()
+    db.execute_sql(f'INSERT INTO favorites (login, paper_id, create_at) values("{login}", "{paper_id}", "{create_at}")')
+
+
 def init_state():
     log(f'calling init_state() ...')
     _state = {}
+    login = 'wingoal'    # 暂时固定为wingoal，后续支持用户管理后再完善
     table_papers = TableManager('papers',
-                             'select paper_id, paper_name, publish_date, authors from papers',
-                             'select * from papers', 'paper_id',
-                             {'width': 700},
-                             {'paper_id': {'width': 110},
-                              'paper_name': {'width': '40%', 'tip': True},
-                              'publish_date': {'width': '8%'}, 'authors': {'width': 'auto', 'tip': True}
-                              },
-                             [{
+                                f'''select p.paper_id, p.paper_name, p.publish_date, p.authors, f.login as flag
+                                            FROM papers p LEFT JOIN favorites f
+                                            ON p.paper_id=f.paper_id and f.login="{login}"
+                                            ''',
+                                'select * from papers', 'paper_id',
+                                {'width': 700},
+                                {'paper_id': {'width': 110},
+                                 'paper_name': {'width': '40%', 'tip': True},
+                                 'publish_date': {'width': '8%'}, 'authors': {'width': 'auto', 'tip': True}
+                                 },
+                                [{
                                  'base1': [
                                      {'column': 'paper_id', 'id': 'paper_paper_id', 'name': 'Paper ID', 'height': 23},
                                      {'column': 'publish_date', 'id': 'paper_publish_date', 'name': 'Publish Date',
@@ -321,10 +330,16 @@ def init_state():
                                  'abstract': {'id': 'paper_abstract', 'name': 'abstract', 'height': 120},
                                  'authors': {'id': 'paper_authors', 'name': 'Authors', 'height': 42},
                                  'weblink': {'id': 'paper_weblink', 'name': 'Web Site', 'height': 42}
-                             }],
+                                }],
                              )
     table_refs = TableManager('refs',
-                           'select ref_no, ref_id, ref_title from refs where paper_id="{paper_id}"',
+                              f'''SELECT r.ref_no, r.ref_id, r.ref_title, f.login as flag 
+                                            FROM 
+                                            (SELECT * FROM refs WHERE paper_id="<PAPER_ID>") r 
+                                            LEFT JOIN 
+                                            (SELECT * FROM favorites WHERE login="{login}") f
+                                            ON r.ref_id = f.paper_id
+                                            '''.replace('<PAPER_ID>', '{paper_id}'),
                               '''SELECT r.paper_id as p_paper_id, r.ref_no, r.ref_text, r.ref_id as paper_id, r.ref_title as paper_name, r.ref_authors,
                                                     p.authors, p.publish_date, p.abstract, p.weblink, p.doclink, p.paper_pdf
                                              FROM refs r LEFT JOIN papers p
@@ -350,14 +365,14 @@ def init_state():
                                'weblink': {'id': 'ref_weblink', 'name': 'Web Site', 'height': 42}
                            },
                            {
-                                'base1': [
+                               'base1': [
                                           {'column': 'ref_no', 'id': 'ref_no', 'name': 'Reference No', 'height': 23,
                                            'name-width': 100, 'field-width': 180},
                                           ],
-                                'paper_name': {'id': 'ref_paper_name', 'name': 'Paper Name', 'height': 40,
+                               'paper_name': {'id': 'ref_paper_name', 'name': 'Paper Name', 'height': 40,
                                                'style': {'font-weight': 'bold', 'font-size': 13}},
-                                'ref_text': {'id': 'ref_text', 'name': 'ref text', 'height': 120},
-                                'ref_authors': {'id': 'ref_authors', 'name': 'Authors', 'height': 42},
+                               'ref_text': {'id': 'ref_text', 'name': 'ref text', 'height': 120},
+                               'ref_authors': {'id': 'ref_authors', 'name': 'Authors', 'height': 42},
                            }
                            ],
                            require_sql_params=[False, True]
@@ -365,6 +380,7 @@ def init_state():
 
     paper_id = table_papers.default_row['paper_id']
     table_refs.update_web_table({'paper_id': paper_id})
+    _state['login'] = login
     _state['paper_id'] = paper_id
     _state['table_papers'] = table_papers
     _state['table_refs'] = table_refs
@@ -383,6 +399,7 @@ def init_state():
     obj.data_dict = types.MethodType(get_data_dict, obj)
     obj.update_table_data = types.MethodType(update_table_data, obj)
     obj.update_rows_dict = types.MethodType(update_rows_dict, obj)
+    obj.add_favorite = types.MethodType(add_favorite, obj)
 
     return obj
 
@@ -467,9 +484,43 @@ def field(name, value, field_id, name_width, field_height, field_width, style=No
     return layout
 
 
+def _style_row(data, column_id, cell_style):
+    style_data = {
+        'width': '60px',
+        'minWidth': '60px',
+        'maxWidth': '200px',
+        'font-size': '11px',
+        'text-align': 'left',
+        'vertical-align': 'middle',
+    },
+    if column_id == 'flag' and data['flag'] == state.login:
+        return {
+            'backgroundColor': 'blue',
+            'fontColor': 'white',
+            'fontWeight': 'bold',
+            'width': '60px',
+            'minWidth': '60px',
+            'maxWidth': '200px',
+            'font-size': '11px',
+            'text-align': 'left',
+            'vertical-align': 'middle',
+        }
+    return style_data
+
+
 def generate_table(table_name, dataframe, max_rows=10):
     tbl_data = state.table(table_name)
+    login = state.login
     _columns = [{'name': col, 'id': col} for col in dataframe.columns]
+    style_data_conditional = [{
+        'if': {
+            'column_id': 'flag',  # 指定列
+            'filter_query': '{flag} = ' + f'"{login}"'  # 指定条件
+        },
+        'backgroundColor': 'blue',  # 满足条件时的背景颜色
+        'font-weight': 'bold',
+        # 'font': {'color': 'white', 'weight': 'bold'}  # 满足条件时的字体颜色
+    }]
     data = dataframe.to_dict('records')
     table_layout = dash_table.DataTable(
         id=table_name,
@@ -489,18 +540,18 @@ def generate_table(table_name, dataframe, max_rows=10):
             'text-align': 'center',  # 设置表头文本居中
         },
         style_data={
-                    # 'height': '15px',
-                    # 'maxHeight': '16px',
-                    # 'minHeight': '16px',
                     'width': '60px',
                     'minWidth': '60px',
                     'maxWidth': '200px',
                     'font-size': '11px',
-                    # 'lineHeight': '8px',
                     'text-align': 'left',
                     'vertical-align': 'middle',
-                    #'whiteSpace': 'normal'
                     },
+        # style_data={"hover": {"backgroundColor": "#e8f0fe"},
+        #     'selector': 'row',
+        #     'style': _style_row
+        # },
+        # style_data_conditional=style_data_conditional,
         data=data,
         page_size=max_rows,
         style_cell={

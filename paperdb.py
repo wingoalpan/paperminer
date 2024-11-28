@@ -22,8 +22,15 @@ def get_db_conn():
 def execute_sql(sql):
     conn = get_db_conn()
     cursor = conn.cursor()
-    cursor.execute(sql)
-    conn.commit()
+    sql_ok = True
+    try:
+        cursor.execute(sql)
+        conn.commit()
+    except Exception as e:
+        sql_ok = False
+        print(f'Exception: {e}')
+    if not sql_ok:
+        cursor.executescript(sql)
     conn.close()
 
 

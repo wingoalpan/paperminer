@@ -157,6 +157,38 @@ layout = html.Div(
 )
 
 
+@callback(
+    Output('papers', 'style_data_conditional'),
+    [Input('papers', 'data')]
+)
+def update_paper_row_style(data):
+    style_conditions = []
+    for row in data:
+        if row['flag'] == state.login:
+            style_conditions.append({
+                'if': {'row_index': data.index(row)},
+                'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
+                'fontWeight': 'bold'
+            })
+    return style_conditions
+
+
+@callback(
+    Output('refs', 'style_data_conditional'),
+    [Input('refs', 'data')]
+)
+def update_ref_row_style(data):
+    style_conditions = []
+    for row in data:
+        if row['flag'] == state.login:
+            style_conditions.append({
+                'if': {'row_index': data.index(row)},
+                'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
+                'fontWeight': 'bold'
+            })
+    return style_conditions
+
+
 @callback([Output('div_paper_detail', 'children'),
                             Output('div_refs', 'children'),
                             Output('papers', 'active_cell')],
@@ -215,6 +247,74 @@ def update_reference(active_cell, page_current, page_size, table_data):
         html_ref_detail = td_refs.detail(select_ref, settings_index=1)
     # print(f'ref_key: {ref_key}, ref_detail: {html_ref_detail}')
     return html_ref_detail, active_cell
+
+
+@callback(Output('div_papers', 'children', allow_duplicate=True),
+          [Input('btn_favorite', 'n_clicks'),
+           Input('papers', 'active_cell'),
+           Input('papers', 'selected_rows'),
+           Input('papers', 'page_current'),
+           State('papers', 'page_size'),
+           State('papers', 'data')],
+          prevent_initial_call=True
+          )
+def add_favorites(n_clicks, active_cell, selected_rows, page_current, page_size, table_data):
+    paper_id = state.current_paper
+    log(f'callback add_favorites(): entered.')
+    if not ctx.triggered:
+        return dash.no_update
+
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_favorite':
+        rows = selected_rows if selected_rows is not None else []
+        if page_current is None:
+            page_current = 0
+        if (active_cell is not None) and (active_cell['row'] not in rows):
+            selected_index = active_cell['row'] + page_current * page_size
+            rows.append(selected_index)
+        if len(rows) == 0:
+            log(f'No paper selected or activated')
+            return dash.no_update
+        for row in rows:
+            data_row = table_data[row]
+            paper_id = data_row['paper_id']
+            login = state.login
+            state.add_favorite(login, paper_id)
+    return dash.no_update
+
+
+@callback(Output('div_refs', 'children', allow_duplicate=True),
+          [Input('btn_favorite_ref', 'n_clicks'),
+           Input('refs', 'active_cell'),
+           Input('refs', 'selected_rows'),
+           Input('refs', 'page_current'),
+           State('refs', 'page_size'),
+           State('refs', 'data')],
+          prevent_initial_call=True
+          )
+def add_favorite_refs(n_clicks, active_cell, selected_rows, page_current, page_size, table_data):
+    paper_id = state.current_paper
+    log(f'callback add_favorite_refs(): entered.')
+    if not ctx.triggered:
+        return dash.no_update
+
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_favorite_ref':
+        rows = selected_rows if selected_rows is not None else []
+        if page_current is None:
+            page_current = 0
+        if (active_cell is not None) and (active_cell['row'] not in rows):
+            selected_index = active_cell['row'] + page_current * page_size
+            rows.append(selected_index)
+        if len(rows) == 0:
+            log(f'No reference paper selected or activated')
+            return dash.no_update
+        for row in rows:
+            data_row = table_data[row]
+            if not data_row['ref_id']:
+                continue
+            paper_id = data_row['ref_id']
+            login = state.login
+            state.add_favorite(login, paper_id)
+    return dash.no_update
 
 
 @callback(Output("extract_ref_progress", "is_open"),

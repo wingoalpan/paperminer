@@ -33,3 +33,28 @@ CREATE TABLE if not exists refs (
     update_at char(28),
     status char(28)
 );
+
+CREATE TABLE if not exists favorites (
+    id integer primary key autoincrement,
+    login char(30) not null,
+    paper_id char(20) not null,
+    score integer,   -- 对论文的评价，0~10分，评价越高分越高
+    mark text,
+    create_at char(28),
+    update_at char(28),
+    status char(28),
+    UNIQUE(login, paper_id)
+);
+
+CREATE TABLE if not exists logins (
+    id integer primary key autoincrement,
+    login char(30) not null,
+    password char(65),
+    login_desc varchar(255),
+    create_at char(28),
+    update_at char(28),
+    status char(28),
+    UNIQUE(login)
+);
+
+
