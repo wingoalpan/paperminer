@@ -164,7 +164,7 @@ layout = html.Div(
 def update_paper_row_style(data):
     style_conditions = []
     for row in data:
-        if row['flag'] == state.login:
+        if row['flag'] == '☆':
             style_conditions.append({
                 'if': {'row_index': data.index(row)},
                 'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
@@ -180,7 +180,7 @@ def update_paper_row_style(data):
 def update_ref_row_style(data):
     style_conditions = []
     for row in data:
-        if row['flag'] == state.login:
+        if row['flag'] == '☆':
             style_conditions.append({
                 'if': {'row_index': data.index(row)},
                 'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色

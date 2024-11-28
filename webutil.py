@@ -168,7 +168,11 @@ class TableManager:
     def update_web_table(self, sql_params=None):
         sql = self.web_table_sql.format(**sql_params) if self.require_sql_params[1] else self.web_table_sql
         rows, columns = db.query_rows(sql)
-        self.table_data = pd.DataFrame(rows, columns=columns)
+        table_data = pd.DataFrame(rows, columns=columns)
+        # Flag字段转换，☆ if flag else None
+        if 'flag' in columns:
+            table_data['flag'] = table_data['flag'].apply(lambda x: '☆' if x else x)
+        self.table_data = table_data
 
     def table_width(self):
         return self.table_settings.get('width', 600)
@@ -317,7 +321,8 @@ def init_state():
                                 {'width': 700},
                                 {'paper_id': {'width': 110},
                                  'paper_name': {'width': '40%', 'tip': True},
-                                 'publish_date': {'width': '8%'}, 'authors': {'width': 'auto', 'tip': True}
+                                 'publish_date': {'width': '8%'}, 'authors': {'width': 'auto', 'tip': True},
+                                 'flag': {'width': 30}
                                  },
                                 [{
                                  'base1': [
@@ -348,7 +353,8 @@ def init_state():
                            ['p_paper_id', 'ref_no'],
                            {'width': 700},
                            {'ref_no': {'width': '10%'}, 'ref_id': {'width': '20%'},
-                            'ref_title': {'width': '70%', 'tip': True}
+                            'ref_title': {'width': '70%', 'tip': True},
+                            'flag': {'width': 30}
                             },
                            [{
                                'base1': [{'column': 'ref_no', 'id': 'ref_no', 'name': 'Reference No', 'height': 23,
