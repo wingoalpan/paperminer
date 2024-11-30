@@ -280,7 +280,7 @@ def verify_paper(paper_id=None, paper_name=None, download_pdf=False):
 def download_file(download_url, downloads_dir, paper_pdf_file):
     try:
         pdf_path = os.path.join(downloads_dir, paper_pdf_file)
-        f = requests.get(download_url)
+        f = requests.get(download_url, headers=headers, cookies=get_cookies())
         with open(pdf_path, 'wb') as pdf:
              pdf.write(f.content)
         return True
@@ -307,12 +307,24 @@ def download_paper(paper, downloads_dir):
     if os.path.exists(pdf_path):
         return True
     if paper_id.startswith('arXiv_'):
+        log(f'Downloading paper pdf from arXiv [{paper_id}] ...')
         return download_arxiv_pdf(paper_id, downloads_dir, paper_pdf)
     else:
         doclink = paper['doclink']
-        if doclink.endswith('.pdf'):
+        if doclink:
+            log(f'Downloading file from {doclink} ...')
             return download_file(doclink, downloads_dir, paper_pdf)
     return False
+
+
+def download_content(download_url):
+    try:
+        f = requests.get(download_url, headers=headers, cookies=get_cookies())
+        return f.content
+    except Exception as e:
+        log(f'download_content(): Exception Caught: {e}')
+        pass
+    return None
 
 
 def main():

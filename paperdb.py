@@ -81,6 +81,12 @@ def query_rows_dict(sql):
     return rows_dict
 
 
+def query_dataframe(sql):
+    rows, columns = query_rows(sql)
+    df = pd.DataFrame(rows, columns=columns)
+    return df
+
+
 def table_rows(table_name):
     sql = f'select * from {table_name}'
     return query_rows(sql)
@@ -180,7 +186,7 @@ def insert_or_update(table_name, row_dict, key, columns=None, unique_keys=None):
         if table_conditions(table_name, {key: row_dict[key]}):
             data_exist = True
     if data_exist:
-        return update(table_name, row_dict, key)
+        return update(table_name, row_dict, key, columns)
     else:
         return insert(table_name, row_dict)
 

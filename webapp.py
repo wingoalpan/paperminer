@@ -2,74 +2,79 @@
 # coding: utf-8
 import os
 import dash
-import pandas as pd
-from dash import dcc
-from dash import html
-from dash import dash_table
-from dash import Input, Output, callback, State, ctx, clientside_callback
 import dash_bootstrap_components as dbc
-import paperdb as db
-
-import webutil as util
+from flask import Flask
+from flask import send_from_directory
 
 import wingoal_utils.common as cm
 from wingoal_utils.common import (set_log_file, log)
+import webutil as util
+import papersearch as ps
 
 set_log_file(os.path.split(__file__)[-1], timestamp=True)
 
-external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css", dbc.themes.BOOTSTRAP] #, dbc.themes.SUPERHERO]
+dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates@V1.0.4/dbc.min.css"
+bWLwgP = "https://codepen.io/chriddyp/pen/bWLwgP.css"
+external_stylesheets = [bWLwgP, dbc.themes.BOOTSTRAP, dbc_css, dbc.themes.MINTY] #, dbc.themes.SUPERHERO]
+external_scripts = ['https://cdn.quilljs.com/1.3.6/quill.js'] #, 'assets/custom.js']
 
-print(f'DEBUG: loading webapp.py ...')
-app_paper_browse = dash.Dash(__name__, use_pages=True,
-                             external_stylesheets=external_stylesheets, title='Papers Viewer')
-
-print(f'DEBUG: constructing start page ...')
-app_paper_browse.layout = html.Div(
-    children=[
-        html.Div(style={'height': 20}),
-        html.Div([html.Div(html.Label("输入搜索的论文标题："),
-                           className='div1'),
-                  html.Div(dcc.Input(id='paper_title_searching', value='attention is all you need', type='search'),
-                           className='div2'),
-                  html.Div(dcc.Dropdown(['Local', 'Google'], '',
-                                        placeholder="select site",
-                                        id='search_site',
-                                        style={'font-size': 13, 'width': 110, 'height': 25, 'lineHeight': 1,
-                                               'margin-left': -2
-                                               }
-                                        ),
-                           className='div2',
-                           style={'vertical-align': 'top'}),
-                  html.Div(html.Button('搜索',
-                                       id='btn_search', n_clicks=0,
-                                       style={'height': 35, 'lineHeight': 1,
-                                              'margin-left': -2
-                                              }
-                                       ),
-                           className='div3')
-                  ],
-                 style={'display': 'inline-block', 'margin-bottom': '15px'}),
-        dash.page_container
-    ]
+navbar = dbc.NavbarSimple(
+    [
+        dbc.NavItem(dbc.NavLink("Home", href="/")),
+        dbc.NavItem(dbc.NavLink("Favorites", href="/favorite")),
+        dbc.NavItem(dbc.NavLink("Comment", href="/comment")),
+    ],
+    brand="Wingoal Pan",
+    brand_href="#",
+    color="primary",
+    dark=True,
+    style={'height': '40px', 'margin-bottome': '5px'}
 )
 
 
-@app_paper_browse.callback(Output('div_papers', 'children'),
-                           [Input('btn_search', 'n_clicks'),
-                            State('paper_title_searching', 'value')
-                            ], prevent_initial_call=True
-                           )
-def search_paper(n_clicks, title_for_searching):
-    print(f'n_clicks={n_clicks}, searching title: {title_for_searching}')
-    if title_for_searching is None:
-        return dash.no_update
-    print(f'searching title: {title_for_searching}')
-    _rows, _columns = db.query_rows(f'SELECT paper_id, paper_name, publish_date, authors ' +
-                                    f'FROM papers WHERE paper_name like "%{title_for_searching}%"')
-    _df_papers = pd.DataFrame(_rows, columns=_columns)
-    return util.generate_table('papers', _df_papers, max_rows=50)
+server = Flask(__name__)
+app_paper_browse = dash.Dash(__name__, server=server,
+                             title='Papers Viewer',
+                             use_pages=True,
+                             external_stylesheets=external_stylesheets,
+                             external_scripts=external_scripts)
+
+state = util.get_state()
+
+app_paper_browse.layout = dbc.Container(
+    [
+        dbc.Row(
+            dbc.Col(
+                    dash.page_container,
+                    width=16,
+                    style={"height": "auto"}
+                    ),
+            class_name="mh-10 d-flex justify-content-center"
+        ),
+    ],
+    fluid=True,
+)
+
+
+@app_paper_browse.server.route('/pdf/<paper_id>')
+def send_pdf(paper_id):
+    log(f'callback server.send_pdf(): enter.')
+    papers_pdf_dir = '../papers'
+    paper = state.get_paper(paper_id)
+    if paper:
+        paper_pdf = paper.get('paper_pdf', None)
+        file_path = os.path.join(papers_pdf_dir, paper_pdf)
+        if os.path.exists(file_path):
+            return send_from_directory(papers_pdf_dir, paper_pdf)
+        elif ps.download_paper(paper, papers_pdf_dir):
+            return send_from_directory(papers_pdf_dir, paper_pdf)
+        log(f'server.send_pdf(): Failed to download pdf of paper (paper_id={paper_id})!')
+    else:
+        log(f'server.send_pdf(): Invalid paper (paper_id={paper_id}) requested. ')
+
+    return None
 
 
 if __name__ == '__main__':
-    print(f'starting app_paper_browse server ...')
+    log(f'starting app_paper_browse server ...')
     app_paper_browse.run_server(debug=True)

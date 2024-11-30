@@ -8,13 +8,13 @@ from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import webbrowser
 
+import paperdb as db
 import webutil as util
 
 from wingoal_utils.common import log
 
 dash.register_page(__name__, path='/')
 
-print(f'DEBUG: loading browse.py ...')
 state = util.get_state()
 taskm = util.get_taskm()
 
@@ -23,8 +23,57 @@ df_refs = state.table_data('refs')
 td_papers = state.table('papers')
 td_refs = state.table('refs')
 
+navbar = dbc.NavbarSimple(
+    [
+        dbc.NavItem(dbc.NavLink("Home", href="/")),
+        # dbc.NavItem(dbc.NavLink("Favorites", href="/favorite")),
+        dbc.NavItem(dbc.NavLink("Comment", href="/comment")),
+    ],
+    brand="Paper Miner",
+    brand_href="#",
+    color="primary",
+    dark=True,
+    style={'height': '40px', 'margin-bottome': '5px'}
+)
+
+
 layout = html.Div(
     children=[
+        dbc.Row(dbc.Col(navbar, width=15),
+                class_name="d-flex justify-content-center mt-2 mb-2"),
+        html.Div([html.Div(html.Label("输入搜索的论文标题：", style={'font-size': 12}),
+                           className='div1'),
+                  html.Div(dcc.Input(id='paper_title_searching', value='attention is all you need', type='search',
+                                     style={'font-size': 12, 'height': 25, 'width': 200}),
+                           className='div2'),
+                  # html.Div(dcc.Dropdown(['Local', 'Google'], '',
+                  #                       placeholder="select site",
+                  #                       id='search_site',
+                  #                       style={'font-size': 12, 'width': 110, 'height': "15px", 'lineHeight': 1,
+                  #                              'margin-left': 1
+                  #                              }
+                  #                       ),
+                  #          className='div2',
+                  #          style={'vertical-align': 'top', 'height': 20}),
+                  html.Div(html.Button('搜索',
+                                       id='btn_search', n_clicks=0,
+                                       style={'font-size': 12, 'height': 25, 'lineHeight': 1,
+                                              'margin-left': 1
+                                              }
+                                       ),
+                           className='div2'),
+                  html.Div(html.Button('看收藏',
+                                       id='btn_filter_favorites', n_clicks=0,
+                                       style={'font-size': 12, 'height': 25, 'lineHeight': 1,
+                                              'margin-left': 1
+                                              }
+                                       ),
+                           className='div3')
+                  ],
+                 style={"display": "flex",
+                        "justify-content": "flex-start",
+                        'margin-bottom': '10px'}),
+
         # 读论文：传递论文doclink参数
         dcc.Store(id='paper_pdf_url', data=None),
         # 查引用：操作是否结束的状态
@@ -104,7 +153,7 @@ layout = html.Div(
                    'justify-content': 'flex_start',
                    }),
         html.Div([html.Div(children=td_papers.detail(), id='div_paper_detail', className='div1'),
-                  html.Div(children=td_refs.detail(), id='div_ref_detail', className='div2')],
+                  html.Div(children=td_refs.detail(), id='div_ref_detail', className='div2', style={'margin-left': '15px'})],
                  style={'margin-top': '15px',
                         "display": "flex",
                         "justify-content": "flex-start",
@@ -155,6 +204,42 @@ layout = html.Div(
             style={'top': '10%', 'left': '20%', 'maxWidth': 650, 'height': 630}),
     ]
 )
+
+@callback(Output('div_papers', 'children', allow_duplicate=True),
+                           [Input('btn_search', 'n_clicks'),
+                            State('paper_title_searching', 'value')
+                            ], prevent_initial_call=True
+                           )
+def search_paper(n_clicks, title_for_searching):
+    print(f'n_clicks={n_clicks}, searching title: {title_for_searching}')
+    if title_for_searching is None:
+        return dash.no_update
+    print(f'searching title: {title_for_searching}')
+    login = state.login
+    _df_papers = db.query_dataframe(f'''SELECT p.paper_id, p.paper_name, p.publish_date, p.authors, f.login as flag
+                                        FROM (SELECT * FROM papers WHERE paper_name like "%{title_for_searching}%") p 
+                                        LEFT JOIN favorites f
+                                        ON p.paper_id=f.paper_id and f.login="{login}"
+                                        ORDER BY publish_date DESC
+                                    ''')
+    util.df_flag2star(_df_papers)
+    return util.generate_table('papers', _df_papers, max_rows=50)
+
+
+@callback(Output('div_papers', 'children', allow_duplicate=True),
+          [Input('btn_filter_favorites', 'n_clicks')
+           ],
+          prevent_initial_call=True
+          )
+def filter_favorites(n_clicks):
+    login = state.login
+    _df_papers = db.query_dataframe(f'''SELECT p.paper_id, p.paper_name, p.publish_date, p.authors, f.login as flag
+                                        FROM papers p, favorites f
+                                        WHERE p.paper_id=f.paper_id and f.login="{login}"
+                                        ORDER BY publish_date DESC
+                                    ''')
+    util.df_flag2star(_df_papers)
+    return util.generate_table('papers', _df_papers, max_rows=50)
 
 
 @callback(
@@ -336,14 +421,14 @@ def extract_refs(n_clicks1, n_clicks2, active_cell, page_current, page_size, tab
         if page_current is None:
             page_current = 0
         if active_cell is None:
-            log('extract_refs(): no cell selected')
+            log('callback extract_refs(): no cell selected')
             return dash.no_update
 
         selected_index = active_cell['row'] + page_current * page_size
         if len(table_data) > 0:
             row = table_data[selected_index]
             paper_id = row['paper_id']
-            log(f'extract_refs(): trying start_analyzing_paper({paper_id}) ... ')
+            log(f'callback extract_refs(): trying start_analyzing_paper({paper_id}) ... ')
             taskm.start_analyzing_paper(paper_id, drill=False)
             state.current_paper = paper_id
         return True
@@ -374,7 +459,7 @@ def update_paper_analysis_log(n, is_open, status):
     # 检查任务是否结束，若结束则更新refs数据
     if (len(thread.done_tasks()) > 0) and (len(thread.todo_tasks()) == 0) and (thread.current_task() is None):
         update_status = {'done': True}
-        log(f'update references rows dict ... [update_paper_analysis_log]')
+        log(f'callback update_paper_analysis_log(): update references rows dict ... ')
         state.update_rows_dict('refs')
         return (log_text if log_text else dash.no_update), update_status
     # 任务进行中，且弹窗打开，则更新log
@@ -409,14 +494,14 @@ def verify_reference(n_clicks1, n_clicks2, active_cell, selected_rows, page_curr
             selected_index = active_cell['row'] + page_current * page_size
             rows.append(selected_index)
         if len(rows) == 0:
-            log(f'No reference selected or activated')
+            log(f'callback verify_reference(): No reference selected or activated')
             return False
         task_schedule_result = ''
         for row in rows:
             if len(table_data) > 0:
                 data_row = table_data[row]
                 ref_no = data_row['ref_no']
-                log(f'verify_reference(): trying start_verifying_reference({paper_id}->{ref_no}) ... ')
+                log(f'callback verify_reference(): trying start_verifying_reference({paper_id}->{ref_no}) ... ')
                 taskm.start_verifying_reference(paper_id, ref_no)
         return True
     elif ctx.triggered[0]['prop_id'].split('.')[0] == 'close-modal_ref':
@@ -446,7 +531,7 @@ def update_verifying_ref_log(n, is_open, status):
     # 检查任务是否结束，若结束则更新refs数据
     if (len(thread.done_tasks()) > 0) and (len(thread.todo_tasks()) == 0) and (thread.current_task() is None):
         update_status = {'done': True}
-        log(f'update references rows dict ... [update_paper_analysis_log]')
+        log(f'callback update_paper_analysis_log(): update references rows dict ... ')
         state.update_rows_dict('refs')
         return (log_text if log_text else dash.no_update), update_status
     # 任务进行中，且弹窗打开，则更新log
@@ -470,9 +555,9 @@ def open_paper_pdf(n_clicks):
             doclink = papers.get(paper_id, {}).get('doclink')
             if not doclink:
                 doclink = papers.get(paper_id, {}).get('weblink')
-            log(f'open_paper_pdf(): paper_id={paper_id}, url={doclink}')
+            log(f'callback open_paper_pdf(): paper_id={paper_id}, url={doclink}')
             if doclink:
-                return {"url": doclink}
+                return {"url": f'/comment?paper_id={paper_id}'}
     return None
 
 
@@ -492,9 +577,9 @@ def open_ref_paper_pdf(n_clicks):
             doclink = papers.get(paper_id, {}).get('doclink')
             if not doclink:
                 doclink = papers.get(paper_id, {}).get('weblink')
-            log(f'open_paper_pdf(): paper_id={paper_id}, url={doclink}')
+            log(f'callback open_ref_paper_pdf(): paper_id={paper_id}, url={doclink}')
             if doclink:
-                return {"url": doclink}
+                return {"url": f'/comment?paper_id={paper_id}'}
     return None
 
 

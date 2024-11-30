@@ -195,7 +195,7 @@ class TableManager:
             row = self.default_row
         if row:
             detail_settings = self.detail_settings[settings_index]
-            detail_width = self.table_settings.get('width', 600)
+            detail_width = self.table_settings.get('width', 720)
             return detail(row, detail_settings, 90, detail_width, self.table_name+'_detail')
         else:
             return 'No detail exist!'
@@ -291,6 +291,19 @@ def get_data_dict(self, table_name):
     return tbl_man.data_dict if tbl_man else None
 
 
+def get_paper(self, paper_id):
+    data_dict = get_data_dict(self, 'papers')
+    return data_dict.get(paper_id, None)
+
+
+def get_comments(self, paper_id):
+    login = state.login
+    rows = db.query_rows_dict(f'SELECT mark from favorites WHERE login="{login}" and paper_id="{paper_id}"')
+    if rows:
+        return rows[0]['mark']
+    return None
+
+
 def update_table_data(self, table_name):
     tbl_man = self.tables.get(table_name, None)
     if tbl_man:
@@ -305,7 +318,18 @@ def update_rows_dict(self, table_name):
 
 def add_favorite(self, login, paper_id):
     create_at = cm.time_str()
-    db.execute_sql(f'INSERT INTO favorites (login, paper_id, create_at) values("{login}", "{paper_id}", "{create_at}")')
+    db.execute_sql(f'INSERT INTO favorites (login, paper_id, create_at) VALUES("{login}", "{paper_id}", "{create_at}")')
+
+
+def add_comments(self, login, paper_id, comments):
+    db.insert_or_update('favorites', {'login': login, 'paper_id': paper_id, 'mark': comments},
+                        'id', columns=['mark', 'update_at'], unique_keys=['login', 'paper_id'])
+
+
+# Flag字段转换，☆ if flag else None
+def df_flag2star(df):
+    if 'flag' in df.columns:
+        df['flag'] = df['flag'].apply(lambda x: '☆' if x else x)
 
 
 def init_state():
@@ -318,7 +342,7 @@ def init_state():
                                             ON p.paper_id=f.paper_id and f.login="{login}"
                                             ''',
                                 'select * from papers', 'paper_id',
-                                {'width': 700},
+                                {'width': 720},
                                 {'paper_id': {'width': 110},
                                  'paper_name': {'width': '40%', 'tip': True},
                                  'publish_date': {'width': '8%'}, 'authors': {'width': 'auto', 'tip': True},
@@ -351,7 +375,7 @@ def init_state():
                                              ON r.ref_id=p.paper_id;
                                         ''',
                            ['p_paper_id', 'ref_no'],
-                           {'width': 700},
+                           {'width': 720},
                            {'ref_no': {'width': '10%'}, 'ref_id': {'width': '20%'},
                             'ref_title': {'width': '70%', 'tip': True},
                             'flag': {'width': 30}
@@ -390,7 +414,7 @@ def init_state():
     _state['paper_id'] = paper_id
     _state['table_papers'] = table_papers
     _state['table_refs'] = table_refs
-    _state['current_paper'] = None
+    _state['current_paper'] = paper_id
     _state['current_ref'] = None
     _state['selected_papers'] = []
     _state['selected_refs'] = []
@@ -403,9 +427,12 @@ def init_state():
     obj.table_data = types.MethodType(get_table_data, obj)
     obj.rows_dict = types.MethodType(get_rows_dict, obj)
     obj.data_dict = types.MethodType(get_data_dict, obj)
+    obj.get_paper = types.MethodType(get_paper, obj)
+    obj.get_comments = types.MethodType(get_comments, obj)
     obj.update_table_data = types.MethodType(update_table_data, obj)
     obj.update_rows_dict = types.MethodType(update_rows_dict, obj)
     obj.add_favorite = types.MethodType(add_favorite, obj)
+    obj.add_comments = types.MethodType(add_comments, obj)
 
     return obj
 
@@ -461,7 +488,7 @@ def detail(row, columns_info, name_width, field_width, detail_id):
 
 
 def field(name, value, field_id, name_width, field_height, field_width, style=None):
-    field_style = {'font-size': '12px'}
+    field_style = {'font-size': '12px', 'wordWrap': 'break-word', 'whiteSpace': 'pre-wrap'}
     if style:
         field_style.update(style)
     layout = html.Div(children=[
@@ -478,10 +505,12 @@ def field(name, value, field_id, name_width, field_height, field_width, style=No
                      'overflowY': 'auto',
                      'maxHeight': field_height,
                      'width': field_width-name_width-20,
+                     'margin-left': 5
                  })
     ], id=f'field_{field_id}',
         # className='div-paper-label-content',
         style={
+            'display': 'flex', 'justify-content': 'flex_start',
             # 'display': 'inline-block',
             'margin-bottom': 5,
             'maxHeight': field_height,

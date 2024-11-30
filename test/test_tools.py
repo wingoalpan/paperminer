@@ -2,6 +2,7 @@
 import os
 import sys
 import argparse
+from datetime import datetime
 import time
 import pandas as pd
 import json as js
@@ -348,9 +349,50 @@ def update_arxiv_citations():
     print(f'Totally {updated_count} papers updated!')
 
 
+def update_publish_date():
+    rows_dict = db.table_rows_dict('papers')
+    updated_count = 0
+    for no, row in enumerate(rows_dict):
+        publish_date = row['publish_date']
+        if not publish_date:
+            continue
+        if publish_date[0] == 'Y':
+            row['publish_date'] = publish_date[1:]+'Y'
+            db.update('papers', row, 'paper_id', columns=['publish_date'])
+            updated_count += 1
+    print(f'Totally {updated_count} papers updated!')
+
+
+def test_download_pdf():
+    import requests
+    import papersearch as ps
+    doclink = 'https://ojs.aaai.org/index.php/AAAI-SS/article/download/31243/33403'
+    content = ps.download_content(doclink)
+    with open('../output/test_download_pdf.pdf', 'wb') as pdf:
+        pdf.write(content)
+    print(content)
+
+
+def update_download_at():
+    papers_pdf_dir = '../../papers'
+    rows_dict = db.table_rows_dict('papers')
+    updated_count = 0
+    for no, row in enumerate(rows_dict):
+        paper_pdf = row.get('paper_pdf', None)
+        file_path = os.path.join(papers_pdf_dir, paper_pdf)
+        if os.path.exists(file_path) and not row.get('download_at', None):
+            create_time = datetime.fromtimestamp(os.path.getctime(file_path))
+            create_at = datetime.strftime(create_time, '%Y-%m-%d %H:%M:%S.%f')
+            row['download_at'] = create_at[:-3]
+            print(js.dumps(row, indent=2))
+            db.update('papers', row, 'paper_id', columns=['download_at'])
+            updated_count += 1
+    print(f'Totally {updated_count} papers updated!')
+
+
 def main():
     print('')
-    update_arxiv_citations()
+    update_download_at()
 
 
 def table_rows_conditions():
