@@ -72,9 +72,32 @@ def test_header_footer_alike():
         # print(f'page {page_no}: horizontal_lines={ pdf_pages[page_no][2]}')
 
 
+def test_locate_reference_start_page():
+    page_no, pdf_path = 5, '../../papers/Ethical_Consi_29749c(Ethical Considerations of Generative AI- A Survey Exploring the Role of Decision Makers in the Loop).pdf'
+    # page_no, pdf_path = 8, '../../papers/2211.09117v2(MAGE- MAsked Generative Encoder to Unify Representation Learning and Image Synthesis).pdf'
+    # page_no, pdf_path = 9, '../../papers/2210.17323v2(GPTQ- Accurate Post-Training Quantization for Generative Pre-trained Transformers).pdf'
+    # page_no, pdf_path = 32, '../../papers/Multitask_lea_001882(Multitask learning).pdf'
+    pdf_pages = pp.parse_pdf(pdf_path)
+    header_y, footer_y = pp.get_header_footer_y(pdf_pages)
+    text_lines = pp.strip_header_footer(pdf_pages[page_no][1], header_y, footer_y)
+    reference_start, ref_format, ref_font_size, format_value = pp.locate_reference_start_page(text_lines)
+    print(f'reference_start={reference_start}, ref_format={ref_format}, ref_font_size={ref_font_size}, format_value={format_value} ')
+
+
+def test_parse_refs():
+    page_no, pdf_path = 5, '../../papers/Ethical_Consi_29749c(Ethical Considerations of Generative AI- A Survey Exploring the Role of Decision Makers in the Loop).pdf'
+    # page_no, pdf_path = 8, '../../papers/2211.09117v2(MAGE- MAsked Generative Encoder to Unify Representation Learning and Image Synthesis).pdf'
+    # page_no, pdf_path = 9, '../../papers/2210.17323v2(GPTQ- Accurate Post-Training Quantization for Generative Pre-trained Transformers).pdf'
+    # page_no, pdf_path = 32, '../../papers/Multitask_lea_001882(Multitask learning).pdf'
+    pdf_pages = pp.parse_pdf(pdf_path)
+    refs = pp.parse_refs(pdf_pages)
+    print(js.dumps(refs, indent=2, ensure_ascii=False))
+    print(f'Totally {len(refs)} references extracted')
+
+
 def main():
     print('')
-    test_header_footer_alike()
+    test_parse_refs()
 
 
 if __name__ == "__main__":

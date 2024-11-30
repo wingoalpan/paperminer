@@ -110,14 +110,14 @@ def _extract_authors_candidates(ref_text):
     # Baluja, S. & Pomerleau, D. A. (1995). \u201cUsing the Representation in a Neural Network\u2019s Hidden Layer for TaskSpeci\ufb01c Focus of Attention,\u201d Proceedings of the International Joint Conference on Arti\ufb01cial Intelligence 1995, IJCAI-95, Montreal, Canada, pp. 133-139.
     pat_author1 = '(' + '|'.join([pat_abbrs_words, pat_words_abbr, pat_prep_words, pat_word_abbr_word,
                                  pat_words, pat_ex_abbrs_words, pat_ex_words_abbr, pat_ex_team]) + ')' \
-                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s))'
+                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s)|(\;\s))'
     pat_author2 = '(' + '|'.join([pat_words, pat_words_abbr, pat_abbrs_words, pat_prep_words, pat_word_abbr_word,
                                   pat_ex_abbrs_words, pat_ex_words_abbr, pat_ex_team]) + ')' \
-                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s))'
+                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s)|(\;\s))'
     authors_candidates = []
 
     ref_text = ref_text.replace("d’", 'D-')
-    ref_text = ref_text.replace("’", ' ')
+    # ref_text = ref_text.replace("’", ' ')
     for pat_author in [pat_author1, pat_author2]:
         m = re.findall(pat_author, ref_text)
         if m:
@@ -142,7 +142,7 @@ def _extract_authors_candidates(ref_text):
 
 
 def _check_authors_candidate(ref_text, authors_candidate):
-    legal_terminators = [',', ':', ', and', 'and', ', &', '&']
+    legal_terminators = [',', ':', ', and', '; and', 'and', ', &', '&', ';']
     author_idx = 0
     author = authors_candidate[author_idx]
     ch_idx = 0
@@ -152,7 +152,7 @@ def _check_authors_candidate(ref_text, authors_candidate):
     # example: [YdC19] Dani Yogatama, Cyprien de Masson d’Autume, Jerome Connor, Tomas Kocisky, Mike Chrzanowski, Lingpeng Kong, Angeliki Lazaridou, Wang Ling, Lei Yu, Chris Dyer, et al. Learning and evaluating general linguistic intelligence. arXiv preprint arXiv:1901.11373, 2019.
     new_ref_text = ref_text.replace("d’", 'D-')
     # example: Misha Denil, Babak Shakibi, Laurent Dinh, Marc’Aurelio Ranzato, and Nando de Freitas. Predicting parameters in deep learning, 2014.
-    new_ref_text = new_ref_text.replace("’", ' ')
+    # new_ref_text = new_ref_text.replace("’", ' ')
     for ch in new_ref_text:
         pos += 1
         if ch == author[ch_idx]:
@@ -196,9 +196,10 @@ def _check_authors_candidate(ref_text, authors_candidate):
     # Parry, M., Dawid, A. P., Lauritzen, S., and Others. Proper local scoring rules. The Annals of Statistics, 40(1):561– 592, 2012.
     # [14] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, et al., “An image is worth 16x16 words: Transformers for image recognition at scale,” arXiv preprint arXiv:2010.11929, 2020.
     # 27. Krizhevsky, A., Hinton, G., et al.: Learning multiple layers of features from tiny images (2009)
+    ref_desc = ref_desc.strip(',').strip(':').strip(';').strip()
     if ref_desc.startswith('et al') or ref_desc.startswith('and'):
         prev_tail = ref_desc.split('.')[0]
-        ref_desc = ref_desc[len(prev_tail)+1:].strip(',').strip(':').strip()
+        ref_desc = ref_desc[len(prev_tail)+1:].strip(',').strip(':').strip(';').strip()
     return authors, ref_desc
 
 
@@ -214,6 +215,7 @@ def _purify_ref_text(ref_line):
         return ref_text[len(prefix):]
     else:
         return ref_text
+
 
 def get_ref_base_data(ref_line):
     nrec = dict()

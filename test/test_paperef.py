@@ -25,7 +25,7 @@ import paperef as pr
 
 def _extract_authors_candidates(ref_text):
     name_fr_pat = r'((des\s)|(van\s)|(den\s)|(de\s)|(las\s)|(der\s))'
-    word_pat = r'(([A-Z][\w\-´`ˆ¨˜¸]+)(-[A-Z][\w\-´`ˆ¨˜¸]+)*)'
+    word_pat = r'(([A-Z][\w\-´`ˆ¨˜’¸]+)(-[A-Z][\w\-´`ˆ¨˜’¸]+)*)'
     abbr_pat = r'(([A-ZŁ]\.)([\s-]?[A-ZŁa-z]\.)*)'
     words_pat = f'({word_pat}(\s{word_pat})*)'
     pat_words_abbr = f'({name_fr_pat}*{words_pat}\,\s{abbr_pat})'
@@ -46,19 +46,23 @@ def _extract_authors_candidates(ref_text):
     # Baluja, S. & Pomerleau, D. A. (1995). \u201cUsing the Representation in a Neural Network\u2019s Hidden Layer for TaskSpeci\ufb01c Focus of Attention,\u201d Proceedings of the International Joint Conference on Arti\ufb01cial Intelligence 1995, IJCAI-95, Montreal, Canada, pp. 133-139.
     pat_author1 = '(' + '|'.join([pat_abbrs_words, pat_words_abbr, pat_prep_words, pat_word_abbr_word,
                                  pat_words, pat_ex_abbrs_words, pat_ex_words_abbr, pat_ex_team]) + ')' \
-                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s))'
+                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s)|(\;\s))'
     pat_author2 = '(' + '|'.join([pat_words, pat_words_abbr, pat_abbrs_words, pat_prep_words, pat_word_abbr_word,
                                   pat_ex_abbrs_words, pat_ex_words_abbr, pat_ex_team]) + ')' \
-                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s))'
+                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s)|(\;\s))'
     authors_candidates = []
 
+    pat_author_debug = '(' + '|'.join([pat_words_abbr]) + ')' \
+                      + r'(([\,\s])|(\.\s)|(\sand)|(\s\&)|(\:\s)|(\;\s))'
+
     ref_text = ref_text.replace("d’", 'D-')
-    ref_text = ref_text.replace("’", ' ')
-    for pat_author in [pat_author1, pat_author2]:
+    # ref_text = ref_text.replace("’", ' ')
+    print(ref_text)
+    for pat_author in [pat_author_debug, pat_author2]:
         m = re.findall(pat_author, ref_text)
         if m:
             authors_candidates.append([group[0] for group in m])
-
+    print(authors_candidates)
     # 针对简单case处理
     # example: [oR16] University of Regensburg. Fascha, 2016.
     # example: [HB20] Daniel Hernandez and Tom Brown. Ai and efﬁciency, May 2020.
@@ -79,17 +83,28 @@ def _extract_authors_candidates(ref_text):
 
 def test_extract_authors_candidates():
     # source: arXiv_1512.03385
-    ref_text = '[48] A. Vedaldi and B. Fulkerson. VLFeat: An open and portable library of computer vision algorithms, 2008.'
+    # ref_text = '[48] A. Vedaldi and B. Fulkerson. VLFeat: An open and portable library of computer vision algorithms, 2008.'
     # source: arXiv_1512.03385
-    ref_text = '[50] M. D. Zeiler and R. Fergus. Visualizing and understanding convolutional neural networks. In ECCV, 2014. 9'
-    ref_text = 'Baluja, S. & Pomerleau, D. A. (1995). \u201cUsing the Representation in a Neural Network\u2019s Hidden Layer for TaskSpeci\ufb01c Focus of Attention,\u201d Proceedings of the International Joint Conference on Arti\ufb01cial Intelligence 1995, IJCAI-95, Montreal, Canada, pp. 133-139.'
-    authors_candidates = _extract_authors_candidates(ref_text)
+    # ref_text = '[50] M. D. Zeiler and R. Fergus. Visualizing and understanding convolutional neural networks. In ECCV, 2014. 9'
+    # ref_text = 'Baluja, S. & Pomerleau, D. A. (1995). \u201cUsing the Representation in a Neural Network\u2019s Hidden Layer for TaskSpeci\ufb01c Focus of Attention,\u201d Proceedings of the International Joint Conference on Arti\ufb01cial Intelligence 1995, IJCAI-95, Montreal, Canada, pp. 133-139.'
+    # 来源：Ethical_Consi_29749c(Ethical Considerations of Generative AI- A Survey Exploring the Role of Decision Makers in the Loop).pdf
+    # ref_text = 'Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones, L.; Gomez, A. N.; Kaiser, Ł.; and Polosukhin, I. 2017. Attention is all you need. Advances in neural information processing systems, 30.'
+    ref_text = 'Dunphy, E. J.; Conlon, S. C.; O’Brien, S. A.; Loughrey, E.; and O’Shea, B. J. 2016. End-of-life planning with frail patients attending general practice: an exploratory prospective cross-sectional study. British Journal of General Practice, 66(650): e661–e666.'
+    authors_candidates = pr._extract_authors_candidates(ref_text)
     print(authors_candidates)
+
+
+def test_get_ref_base_data():
+    ref_text = 'Dunphy, E. J.; Conlon, S. C.; O’Brien, S. A.; Loughrey, E.; and O’Shea, B. J. 2016. End-of-life planning with frail patients attending general practice: an exploratory prospective cross-sectional study. British Journal of General Practice, 66(650): e661–e666.'
+    authors_candidates = pr._extract_authors_candidates(ref_text)
+    print(js.dumps(authors_candidates, indent=2, ensure_ascii=False))
+    nrec = pr.get_ref_base_data(ref_text)
+    print(js.dumps(nrec, indent=2, ensure_ascii=False))
 
 
 def main():
     print('')
-    test_extract_authors_candidates()
+    test_get_ref_base_data()
 
 
 if __name__ == "__main__":

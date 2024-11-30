@@ -15,6 +15,7 @@ class RefFormat(Enum):
     REF_ID = 2
     REF_INDENT = 3
     REF_NUM_DOT = 4
+    REF_LINE_SPACE = 5
 
 
 # 从element提取内容主文本（不含装饰文本<横向字符、上标注释字符>）
@@ -347,6 +348,30 @@ def _check_reference_by_indent(page_text_lines, ref_font_size, probe_lines=10):
     return is_reference_page and reference_found
 
 
+def _check_reference_by_line_space(page_text_lines, ref_font_size, line_space, probe_lines=30):
+    st_line_space = line_space - 0.2
+    line_space_found = False
+    probing_text_lines = page_text_lines[:min(probe_lines, len(page_text_lines))]
+    prev_y0 = -1
+    for i, page_text_line in enumerate(probing_text_lines):
+        probed_lines = i
+        font_size = page_text_line[2]
+        if abs(ref_font_size - font_size) >= 1.0:
+            break
+        y1, _, y0, _ = page_text_line[0]
+        if prev_y0 < 0:
+            prev_y0 = y0
+            continue
+        cur_line_space = prev_y0 - y1
+        if cur_line_space < st_line_space:
+            prev_y0 = y0
+            continue
+        if (cur_line_space - st_line_space < 1.0) or (cur_line_space < 6):
+            line_space_found = True
+        break
+    return line_space_found
+
+
 def _search_reference_start(page_text_lines):
     for i in range(len(page_text_lines)):
         line_text = page_text_lines[i][1].strip()
@@ -360,10 +385,11 @@ def _search_reference_start(page_text_lines):
 
 def locate_reference_start_page(page_text_lines):
     ref_format = None
+    format_value = None
     is_reference_page = False
     font_size = 0.
     if not _search_reference_start(page_text_lines):
-        return False, ref_format, font_size
+        return False, ref_format, font_size, format_value
     # 如果是 References 起始页，需要将数据预处理后再进一步检查 reference的格式。
     # 检查方法： 将 "References" 标记的下一行视作第一条 reference, 检查该reference格式作为这个References的格式，
     # 而 pdfminer 解析pdf文本并不是完全按从上到下顺序扫描，若不预处理，则可能 "References"标记的下一行并不是 实际位置上的下一行。
@@ -376,49 +402,83 @@ def locate_reference_start_page(page_text_lines):
     for text_lines in split_text_lines[1:]:
         new_page_text_lines = new_page_text_lines + text_lines
 
-    for i in range(len(new_page_text_lines)):
-
-        line_text = new_page_text_lines[i][1].strip()
+    ref_start_line = -1
+    for i, page_text_line in enumerate(new_page_text_lines):
+        line_text = page_text_line[1].strip()
         #print(f'DEBUG: {line_text}')
-        font_size = new_page_text_lines[i][2]
-        if not is_reference_page:
-            if line_text in ['References', 'REFERENCES']:
-                is_reference_page = True
-            continue
-        pat = r'\[(?P<ref_no>\d*)\] [\s\S]*'
-        m = re.match(pat, line_text)
-        if m:
-            ref_format = RefFormat.REF_NO
+        font_size = page_text_line[2]
+        if line_text in ['References', 'REFERENCES']:
+            is_reference_page = True
+            ref_start_line = i + 1
             break
+    page_text_line = new_page_text_lines[ref_start_line]
+    line_text = page_text_line[1].strip()
+    font_size = page_text_line[2]
+    pat = r'\[(?P<ref_no>\d*)\] [\s\S]*'
+    m = re.match(pat, line_text)
+    if m:
+        ref_format = RefFormat.REF_NO
+    if not ref_format:
         pat = r'\[(?P<ref_id>\S*)\] [\s\S]*'
         m = re.match(pat, line_text)
         if m:
             ref_format = RefFormat.REF_ID
-            break
+    if not ref_format:
         pat = r'(?P<ref_no>\d*)\. [\s\S]*'
         m = re.match(pat, line_text)
         if m:
             ref_format = RefFormat.REF_NUM_DOT
+    if ref_format:
+        return is_reference_page, ref_format, font_size, format_value
+
+    # 扫描references描述文本（30行），识别reference分割方式
+    refs_text_lines = new_page_text_lines[ref_start_line: ref_start_line+30]
+    prev_y0, prev_x0, prev_line_space = -1, -1, -1
+    for i, page_text_line in enumerate(refs_text_lines):
+        line_text = page_text_line[1].strip()
+        y1, x0, y0, x1 = page_text_line[0]
+        # 首行 或 文本区块切换，重置prev_y0, prev_x0
+        if prev_y0 < 0 or prev_y0 < y1:
+            prev_y0, prev_x0 = y0, x0
+            continue
+        if x0 - prev_x0 >= 5:
+            ref_format = RefFormat.REF_INDENT
+            format_value = x0 - prev_x0
             break
-        ref_format = RefFormat.REF_INDENT
-        break
+        cur_line_space = prev_y0 - y1
+        if prev_line_space <= 0:
+            prev_line_space = cur_line_space
+            prev_y0, prev_x0 = y0, x0
+            continue
+        if cur_line_space - prev_line_space >= 2:
+            ref_format = RefFormat.REF_LINE_SPACE
+            format_value = cur_line_space
+            break
+        prev_y0, prev_x0 = y0, x0
+    return is_reference_page, ref_format, font_size, format_value
 
 
-    return is_reference_page, ref_format, font_size
-
-
-def check_reference(page_text_lines, ref_format, ref_font_size, probe_lines=10):
+def check_reference(page_text_lines, ref_format, ref_font_size, format_value=None, probe_lines=30):
     if ref_format == RefFormat.REF_NO:
-        return _check_reference_by_no(page_text_lines, ref_font_size, probe_lines)
+        return _check_reference_by_no(page_text_lines, ref_font_size, probe_lines=probe_lines)
     elif ref_format == RefFormat.REF_ID:
-        return _check_reference_by_id(page_text_lines, ref_font_size, probe_lines)
+        return _check_reference_by_id(page_text_lines, ref_font_size, probe_lines=probe_lines)
     elif ref_format == RefFormat.REF_NUM_DOT:
-        return _check_reference_by_num_dot(page_text_lines, ref_font_size, probe_lines)
-    else:
-        return _check_reference_by_indent(page_text_lines, ref_font_size, probe_lines)
+        return _check_reference_by_num_dot(page_text_lines, ref_font_size, probe_lines=probe_lines)
+    elif ref_format == RefFormat.REF_INDENT:
+        return _check_reference_by_indent(page_text_lines, ref_font_size, probe_lines=probe_lines)
+    elif ref_format == RefFormat.REF_LINE_SPACE:
+        return _check_reference_by_line_space(page_text_lines, ref_font_size, format_value, probe_lines=probe_lines)
+    return False
+
+# 探测reference文本的首行x0坐标
+def _probe_min_x0(text_lines):
+    min_x0 = min([rect[1] for rect, _, _, _ in text_lines])
+    return min_x0
 
 
-def _extract_unformat_refs(arranged_text_lines):
+def _extract_indent_format_refs(arranged_text_lines, indent):
+    st_indent = indent - 0.5
     refs = []
     cur_ref = []
     ref_no = 0
@@ -439,7 +499,7 @@ def _extract_unformat_refs(arranged_text_lines):
                 ref_start_x = _text_line[0][1]
             cur_y1, cur_x0, cur_y0, _ = _text_line[0]
             # 无缩进，可能是reference首行
-            if cur_x0 - ref_start_x < 4:
+            if cur_x0 - ref_start_x < st_indent:
                 if cur_ref:
                     ref_no += 1
                     refs.append((ref_no, ' '.join(cur_ref).replace('- ', '')))
@@ -458,6 +518,67 @@ def _extract_unformat_refs(arranged_text_lines):
             else:
                 break
             prev_y1, prev_y0 = cur_y1, cur_y0
+    if cur_ref:
+        ref_no += 1
+        refs.append((ref_no, ' '.join(cur_ref).replace('- ', '')))
+    return refs
+
+
+def _extract_linesp_format_refs(arranged_text_lines, line_space):
+    st_line_space = line_space - 0.5
+    refs = []
+    ref_no = 0
+
+    # 多个文本区块合并
+    pages_refs_text_lines = []
+    for _text_lines in arranged_text_lines:
+        pages_refs_text_lines.extend(_text_lines)
+
+    # 搜索 References标志起点行
+    ref_start_line = -1
+    for i, page_text_line in enumerate(pages_refs_text_lines):
+        line_text = page_text_line[1].strip()
+        if line_text in ['References', 'REFERENCES']:
+            ref_start_line = i + 1
+            break
+    # References的所有描述文本
+    refs_text_lines = pages_refs_text_lines[ref_start_line:]
+
+    inner_space = 0
+    prev_y1, _, prev_y0, _ = refs_text_lines[0][0]
+    cur_ref = [refs_text_lines[0][1].strip()]
+    for i, _text_line in enumerate(refs_text_lines[1:]):
+        y1, x0, y0, _ = _text_line[0]
+        # y坐标变大，说明是换页或者换文本块（左栏切右栏）
+        if (y1 > prev_y0) and (y1 - prev_y0 > 20):
+            # 如果之前有未保存的reference,则保存
+            if cur_ref:
+                ref_no += 1
+                refs.append((ref_no, ' '.join(cur_ref).replace('- ', '')))
+            cur_ref = [_text_line[1].strip()]
+            prev_y1, prev_y0 = y1, y0
+            continue
+        # 与前一行的 y1坐标近似相等，则说明是同一行
+        if abs(y1 - prev_y1) < 1:
+            cur_ref.append(_text_line[1].strip())
+            continue
+        cur_line_space = prev_y0 - y1
+        # 行间距 < 标准references间距，则是续行。
+        # 为健壮型考虑，保存之前的reference内续行间距inner_space作为参考
+        if (cur_line_space < st_line_space) and (True if inner_space == 0 else (cur_line_space < inner_space)):
+            inner_space = cur_line_space + 0.5
+            cur_ref.append(_text_line[1].strip())
+        # 行间距 > 标准references间距 且 < 15，则是新 Reference首行
+        elif cur_line_space < 15:
+            if cur_ref:
+                ref_no += 1
+                refs.append((ref_no, ' '.join(cur_ref).replace('- ', '')))
+            cur_ref = [_text_line[1].strip()]
+        # 行间距 > 15，判断为References结束
+        else:
+            break
+        prev_y1, prev_y0 = y1, y0
+
     if cur_ref:
         ref_no += 1
         refs.append((ref_no, ' '.join(cur_ref).replace('- ', '')))
@@ -567,18 +688,19 @@ def parse_refs(pdf_pages):
     reference_start = False
     ref_format = None
     ref_font_size = 0
+    format_value = None
     is_reference = False
     header_y, footer_y = get_header_footer_y(pdf_pages)
     ref_page_no_list = []
     for page_no in range(len(pdf_pages)):
         text_lines = strip_header_footer(pdf_pages[page_no][1], header_y, footer_y)
         if not reference_start:
-            reference_start, ref_format, ref_font_size = locate_reference_start_page(text_lines)
+            reference_start, ref_format, ref_font_size, format_value = locate_reference_start_page(text_lines)
             is_reference = reference_start
             if reference_start:
                 log(f'References start page {page_no+1}, format={ref_format}')
         else:
-            is_reference = check_reference(text_lines, ref_format, ref_font_size)
+            is_reference = check_reference(text_lines, ref_format, ref_font_size, format_value)
         if is_reference:
             ref_page_no_list.append(page_no+1)
             page_text_lines = text_lines   # 基于预处理后的pdf_page来处理，而不用原来df_pages[page_no][1]
@@ -591,5 +713,7 @@ def parse_refs(pdf_pages):
     log(f'References pages are {ref_page_no_list}')
     if ref_format in [RefFormat.REF_NO, RefFormat.REF_ID, RefFormat.REF_NUM_DOT]:
         return extract_refs(refs_text_lines, ref_format)
+    elif ref_format == RefFormat.REF_INDENT:
+        return _extract_indent_format_refs(refs_text_lines, format_value)
     else:
-        return _extract_unformat_refs(refs_text_lines)
+        return _extract_linesp_format_refs(refs_text_lines, format_value)
