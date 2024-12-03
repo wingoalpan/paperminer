@@ -316,6 +316,17 @@ def update_rows_dict(self, table_name):
         tbl_man.update_rows_dict()
 
 
+def get_lineage_graph(refs, papers):
+    lineage_graph = {}
+    for paper in papers:
+        paper_id = paper['paper_id']
+        citations = [(ref['p_paper_id'], ref['ref_no'])for ref in refs if ref['paper_id'] == paper_id]
+        references = [(ref['paper_id'], ref['ref_no']) for ref in refs
+                      if ref['p_paper_id'] == paper_id and ref['paper_id'] is not None]
+        lineage_graph[paper_id] = {'paper': paper, 'citations': citations, 'references': references}
+    return lineage_graph
+
+
 def add_favorite(self, login, paper_id):
     create_at = cm.time_str()
     db.execute_sql(f'INSERT INTO favorites (login, paper_id, create_at) VALUES("{login}", "{paper_id}", "{create_at}")')
@@ -431,6 +442,9 @@ def init_state():
     obj.get_comments = types.MethodType(get_comments, obj)
     obj.update_table_data = types.MethodType(update_table_data, obj)
     obj.update_rows_dict = types.MethodType(update_rows_dict, obj)
+
+    lineage_graph = get_lineage_graph(table_refs.rows_dict, table_papers.rows_dict)
+    setattr(obj, 'lineage_graph', lineage_graph)
     obj.add_favorite = types.MethodType(add_favorite, obj)
     obj.add_comments = types.MethodType(add_comments, obj)
 
@@ -458,6 +472,47 @@ def init_task_man():
     obj.terminate = types.MethodType(terminate, obj)
     obj.query_log = types.MethodType(query_log, obj)
     return obj
+
+
+# 搜索 src 到 target 之间的引用链
+def _get_lineage_by_citation(src, target):
+    if src == target:
+        return None
+    lineage_graph = state.lineage_graph
+    refs_tr = {}
+    queue = [src]
+    found_target = False
+    while queue:
+        paper_id = queue.pop(0)
+        if not lineage_graph.get(paper_id, None):
+            break
+        citations = lineage_graph[paper_id]['citations']
+        if not citations:
+            break
+        citation_ids = [citation[0] for citation in citations]
+        if target in citation_ids:
+            refs_tr[target] = paper_id
+            found_target = True
+            break
+        for citation in citation_ids:
+            refs_tr[citation] = paper_id
+            queue.append(citation)
+    if found_target:
+        refs_link = [target]
+        next_node = refs_tr.get(target, None)
+        while next_node:
+            refs_link.append(next_node)
+            next_node = refs_tr.get(next_node, None)
+        return refs_link
+    return None
+
+
+def get_lineage_between(src, target):
+    link_src_target = _get_lineage_by_citation(src, target)
+    if link_src_target:
+        return link_src_target
+    else:
+        return _get_lineage_by_citation(target, src)
 
 
 def detail(row, columns_info, name_width, field_width, detail_id):
@@ -519,54 +574,13 @@ def field(name, value, field_id, name_width, field_height, field_width, style=No
     return layout
 
 
-def _style_row(data, column_id, cell_style):
-    style_data = {
-        'width': '60px',
-        'minWidth': '60px',
-        'maxWidth': '200px',
-        'font-size': '11px',
-        'text-align': 'left',
-        'vertical-align': 'middle',
-    },
-    if column_id == 'flag' and data['flag'] == state.login:
-        return {
-            'backgroundColor': 'blue',
-            'fontColor': 'white',
-            'fontWeight': 'bold',
-            'width': '60px',
-            'minWidth': '60px',
-            'maxWidth': '200px',
-            'font-size': '11px',
-            'text-align': 'left',
-            'vertical-align': 'middle',
-        }
-    return style_data
-
-
-def generate_table(table_name, dataframe, max_rows=10):
-    tbl_data = state.table(table_name)
-    login = state.login
+def create_table_layout(table_name, dataframe, table_config, max_rows=10):
     _columns = [{'name': col, 'id': col} for col in dataframe.columns]
-    style_data_conditional = [{
-        'if': {
-            'column_id': 'flag',  # 指定列
-            'filter_query': '{flag} = ' + f'"{login}"'  # 指定条件
-        },
-        'backgroundColor': 'blue',  # 满足条件时的背景颜色
-        'font-weight': 'bold',
-        # 'font': {'color': 'white', 'weight': 'bold'}  # 满足条件时的字体颜色
-    }]
     data = dataframe.to_dict('records')
     table_layout = dash_table.DataTable(
         id=table_name,
         columns=_columns,
         css=[{'selector': 'table', 'rule': 'table-layout: auto'},
-             # {'selector': '.dash-spreadsheet td',
-             #  'rule': '''
-             #        max-height: 30px !important; min-height: 30px !important; height: 30px !important;
-             #  '''
-             # },
-             # {'selector': '.dash-table-container', 'rule': 'height: 280px; width: 600px;'}
              ],
         style_header={
             'font-family': 'Times New Roman',  # 设置表头字体
@@ -582,11 +596,6 @@ def generate_table(table_name, dataframe, max_rows=10):
                     'text-align': 'left',
                     'vertical-align': 'middle',
                     },
-        # style_data={"hover": {"backgroundColor": "#e8f0fe"},
-        #     'selector': 'row',
-        #     'style': _style_row
-        # },
-        # style_data_conditional=style_data_conditional,
         data=data,
         page_size=max_rows,
         style_cell={
@@ -596,28 +605,24 @@ def generate_table(table_name, dataframe, max_rows=10):
                     'lineHeight': '1px',
                     'overflow': 'hidden',
                     'textOverflow': 'ellipsis',
-                    # 'width': '110px',
-                    # 'minWidth': '110px',
-                    # 'maxWidth': '200p',
                     'maxWidth': 0,
                     'vertical-align': 'middle',
                     # 'whiteSpace': 'normal'
                     },
         style_table={'overflowX': 'auto',
-                     # 'tableLayout': 'fixed',
                      'overflowY': 'auto',
-                     'height': '280px',
-                     'width': tbl_data.table_width()
+                     'height': table_config.get('table_height', 280),
+                     'width': table_config.get('table_width', 300)
         },
         style_cell_conditional=[
             {
                 'if': {'column_id': col},
-                'width': f'{tbl_data.column_width(col)}'
+                'width': f'{table_config.get("columns", {}).get(col, {}).get("width", 100)}'
             } for col in dataframe.columns
         ],
         tooltip_data=[
             {column: {'value': str(value), 'type': 'markdown'} for column, value in row.items()
-             if tbl_data.column_tip(column)}
+             if table_config.get("columns", {}).get(column, {}).get("tip", False)}
             for row in dataframe.to_dict('records')
         ],
         tooltip_duration=None,
@@ -626,6 +631,13 @@ def generate_table(table_name, dataframe, max_rows=10):
         virtualization=True
     )
     return table_layout
+
+
+def generate_table(table_name, dataframe, max_rows=10):
+    tbl_data = state.table(table_name)
+    table_config = {'table_width': tbl_data.table_width(),
+                    'columns': tbl_data.column_settings}
+    return create_table_layout(table_name, dataframe, table_config, max_rows=max_rows)
 
 
 g_state = None

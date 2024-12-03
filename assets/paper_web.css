@@ -76,3 +76,95 @@
     line-height: 1;
     vertical-align: middle;
 }
+
+.div-flex-left{
+    display: flex;
+    justify-content: flex_start;
+    vertical-align: middle;
+    align-items: center;
+}
+
+.div-flex-center{
+    display: flex;
+    justify-content: center;
+    vertical-align: middle;
+    align-items: center;
+}
+
+.div-ellipsis {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 3; /* 这里3表示最多显示3行 */
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+}
+
+.centered-button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.div-border {
+    border: 1px solid;
+}
+
+.ml-5 {
+    margin-left: 5px;
+}
+
+.ml-10 {
+    margin-left: 10px;
+}
+
+.ml-20 {
+    margin-left: 20px;
+}
+
+.mr-5 {
+    margin-right: 5px;
+}
+
+.mr-10 {
+    margin-right: 10px;
+}
+
+.mr-20 {
+    margin-right: 20px;
+}
+
+.mb-5 {
+    margin-bottom: 5px;
+}
+
+.mb-10 {
+    margin-bottom: 10px;
+}
+
+.tooltip {
+    position: relative;
+    display: inline-block;
+    visibility: visible;
+}
+
+.tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 0;
+    position: absolute;
+    z-index: 1;
+    bottom: 100%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}

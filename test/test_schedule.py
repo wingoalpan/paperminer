@@ -48,9 +48,11 @@ def test_extract_references():
     # 无页眉，有页码，（2211.09117v2(MAGE- MAsked Generative Encoder to Unify Representation Learning and Image Synthesis)）
     #paper_list = db.table_conditions('papers', {'paper_id': 'arXiv_2211.09117'})
     # reference 作者和标题之间有年份
-    paper_list = db.table_conditions('papers', {'paper_id': 'arXiv_1406.2661'})
+    # paper_list = db.table_conditions('papers', {'paper_id': 'arXiv_1406.2661'})
     # “References” 标记字体小，reference文本续行缩进只有5.9
-    paper_list = db.table_conditions('papers', {'paper_id': 'GS_Multitask_lea_001882'})
+    # paper_list = db.table_conditions('papers', {'paper_id': 'GS_Multitask_lea_001882'})
+    # 没有缩进，通过行间距来分割不同Reference； 用分号';'来分割作者
+    paper_list = db.table_conditions('papers', {'paper_id': 'GS_Ethical_Consi_29749c'})
 
     paper = paper_list[0]
     schedule.extract_references(paper, drill=True)

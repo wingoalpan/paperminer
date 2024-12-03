@@ -1,15 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
-import requests
 import dash
 from dash import dcc
 from dash import html
 from dash import Input, Output, callback, State, ctx, clientside_callback
-from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import dash_quill as quill
-import dash_pdf
-import webbrowser
 
 import webutil as util
 
@@ -94,15 +90,15 @@ layout = html.Div([
 
 
 @callback(
-    [#Output('id_doclink', 'src'),
-     Output('id_doclink', 'src'),
+    [Output('id_doclink', 'src'),
      Output('comments_editor', 'value'),
-        Output('store_paper_id', 'data')
-    ],
+     Output('store_paper_id', 'data')
+     ],
     [Input('url', 'pathname'),
      Input('url', 'search')],
     [State('url', 'href')],
-    prevent_initial_call=True
+    prevent_initial_call=True,
+    suppress_callback_exceptions=True
 )
 def get_doclink_from_url(pathname, search, href):
     log(f'callback get_doclink_from_url(): entered.')

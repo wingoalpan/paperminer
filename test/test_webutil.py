@@ -86,11 +86,15 @@ def test_query_log():
     time.sleep(1)
 
 
+def test_lineage_between():
+    # src, target = 'arXiv_2307.08702', 'arXiv_1905.01278'
+    src, target = 'arXiv_2307.08702', 'arXiv_1505.01749'
+    print(util.get_lineage_between(src, target))
+
+
 def main():
     print('')
-    test_start_analyzing_paper()
-    test_start_verify_reference()
-    test_query_log()
+    test_lineage_between()
 
 
 if __name__ == "__main__":

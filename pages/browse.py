@@ -6,7 +6,6 @@ from dash import html
 from dash import Input, Output, callback, State, ctx, clientside_callback
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
-import webbrowser
 
 import paperdb as db
 import webutil as util
@@ -27,13 +26,13 @@ navbar = dbc.NavbarSimple(
     [
         dbc.NavItem(dbc.NavLink("Home", href="/")),
         # dbc.NavItem(dbc.NavLink("Favorites", href="/favorite")),
-        dbc.NavItem(dbc.NavLink("Comment", href="/comment")),
+        dbc.NavItem(dbc.NavLink("Lineage", href="/lineage")),
     ],
     brand="Paper Miner",
     brand_href="#",
     color="primary",
     dark=True,
-    style={'height': '40px', 'margin-bottome': '5px'}
+    style={'height': '40px', 'margin-bottom': '5px'}
 )
 
 
@@ -447,8 +446,6 @@ def extract_refs(n_clicks1, n_clicks2, active_cell, page_current, page_size, tab
     prevent_initial_call=True
 )
 def update_paper_analysis_log(n, is_open, status):
-    # 这个回调函数会根据interval-component的n_intervals输入触发
-    # n_intervals是自上次页面加载以来interval-component触发的次数
     update_status = dash.no_update
     thread = taskm.thread('analyzing_paper')
     if (len(thread.todo_tasks()) > 0) or (thread.current_task() is not None):
@@ -519,8 +516,6 @@ def verify_reference(n_clicks1, n_clicks2, active_cell, selected_rows, page_curr
     prevent_initial_call=True
 )
 def update_verifying_ref_log(n, is_open, status):
-    # 这个回调函数会根据interval-component的n_intervals输入触发
-    # n_intervals是自上次页面加载以来interval-component触发的次数
     update_status = dash.no_update
     thread = taskm.thread('verifying_ref')
     if (len(thread.todo_tasks()) > 0) or (thread.current_task() is not None):

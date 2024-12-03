@@ -6,7 +6,6 @@ import dash_bootstrap_components as dbc
 from flask import Flask
 from flask import send_from_directory
 
-import wingoal_utils.common as cm
 from wingoal_utils.common import (set_log_file, log)
 import webutil as util
 import papersearch as ps
@@ -37,7 +36,8 @@ app_paper_browse = dash.Dash(__name__, server=server,
                              title='Papers Viewer',
                              use_pages=True,
                              external_stylesheets=external_stylesheets,
-                             external_scripts=external_scripts)
+                             external_scripts=external_scripts,
+                             suppress_callback_exceptions=True)
 
 state = util.get_state()
 
@@ -76,5 +76,7 @@ def send_pdf(paper_id):
 
 
 if __name__ == '__main__':
+    # 若正式部署，则应删除这段启动代码，而改用命令行
+    #  waitress-serve --host 0.0.0.0 --port 8050 webapp:server
     log(f'starting app_paper_browse server ...')
     app_paper_browse.run_server(debug=True)
