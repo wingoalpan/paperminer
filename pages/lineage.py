@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
+import copy
+
 import dash
 import pandas as pd
 from dash import dcc
@@ -39,25 +41,27 @@ def generate_paper_node(paper_id):
         return html.Div()
     paper = state.get_paper(paper_id)
     paper_name = paper.get('paper_name', '') if paper else ""
+    paper_name_show = paper_name if len(paper_name) < 20 else (paper_name[:17] + '...')
     paper_node = html.Div([
         # paper_id
         html.Div(
             html.Label(f'{paper_id}:',
                        # className=' tooltip',
                        style={'font-weight': 'bold', 'font-size': 10,
-                              'max-height': 25, 'display': 'inline-block'}
+                              'max-height': 15, 'display': 'inline-block'}
                        ),
             className='div-ellipsis',
-            title=paper_id,
             style={'margin-bottom': '2px'}
         ),
         # paper_name
         html.Div(
-            html.Label(f'{paper_name}', style={'max-height': 60}),
+            html.Label(f'{paper_name_show}',
+                       style={'max-height': 25}),
             className='div-ellipsis'
         ),
-    ], className='div-border ml-5 mr-5 mt-2 mb-2',
-        style={'width': 110, 'height': 80, 'background-color': 'black'})
+    ], className='div-border ml-5 mr-5 mt-1 mb-1',
+        title=f'{paper_id} - {paper_name}',
+        style={'width': 110, 'height': 40, 'background-color': 'black'})
     return paper_node
 
 
@@ -132,21 +136,21 @@ def generate_lineage_graph(src_link, target_link):
         html.Div([
             html.Div([
                 html.Div([generate_paper_node(src_show)],
-                         className='mt-2',
+                         className='mt-1',
                          style={'background-color': 'gray'}, ),
                 html.Div(generate_paper_nodes(src_link_show),
-                         className='div-flex-left mt-2',
+                         className='div-flex-left mt-1',
                          style={'background-color': 'blue'},
                          id='id_citations_link_src'),
                 html.Div([generate_paper_node(connection)],
-                         className='mt-2',
+                         className='mt-1',
                          style={'background-color': 'gray'}),
                 html.Div(generate_paper_nodes(target_link_show),
-                         className='div-flex-left mt-2',
+                         className='div-flex-left mt-1',
                          style={'background-color': 'blue'},
                          id='id_citations_link_target'),
                 html.Div([generate_paper_node(target_show)],
-                         className='mt-2',
+                         className='mt-1',
                          style={'background-color': 'gray'}),
             ], className='div-flex-left mb-2'),
             # 添加滑动条
@@ -176,35 +180,54 @@ def generate_lineage_graph(src_link, target_link):
                     style=slider2_div_style
                 )
             ], className='div-flex-left'),
-        ], className='mt-2', style=lineage_link_style
+        ], className='ml-10 mt-2', style=lineage_link_style
         ),
     ], className='div-flex-left',
         style=lineage_graph_style)
     return lineage_graph
 
 
-def gen_citations_or_references_table(paper_id, opt='citations', flag_refs=None):
+def gen_citations_or_references_table(paper_id, opt='citations', lineage_explore=None):
     lineage_graph = state.lineage_graph
     relations = lineage_graph.get(paper_id, {}).get(opt, None) if (paper_id is not None) else None
     table_config = {'table_width': 500,
                     'table_height': 300,
-                    'column_settings': {
-                        'paper_id': {'width': '20%'},
-                        'paper_name': {'width': '55%', 'tip': True},
-                        'ref_no': {'width': '15%'},
-                        'flag': {'width': '10%'}
+                    'columns': {
+                        'paper_id': {'width': 130},
+                        'paper_name': {'width': 'auto', 'tip': False},
+                        'ref_no': {'width': 50},
+                        'flag': {'width': 40}
                     }}
+    page_size = 50
+    page_current = None
+    active_cell = None
     if relations:
+        visit_traces = lineage_explore.get('visit_traces') if lineage_explore is not None else []
+        pos = lineage_explore.get('pos') if lineage_explore is not None else 0
+        pos = (pos - 1) if opt == 'citations' else (pos + 1)
+        target = visit_traces[pos] if (pos >= 0) and (pos < len(visit_traces)) else None
+        flag_refs = visit_traces
         related_papers = [(lineage_graph.get(relation[0], {}).get('paper', None), relation[1]) for relation in relations]
         data = [[paper['paper_id'], paper['paper_name'], ref_no, '☆' if paper['paper_id'] in flag_refs else None]
                 for paper, ref_no in related_papers if paper is not None]
         df_table = pd.DataFrame(data, columns=['paper_id', 'paper_name', 'ref_no', 'flag'])
+        if target is not None:
+            for i, row in enumerate(data):
+                if row[0] == target:
+                    if i < page_size:
+                        active_cell = {'row': i, 'column': 0}
+                    else:
+                        page_current = i // page_size
+                        active_cell = {'row': i % page_size, 'column': 0}
     else:
         df_table = pd.DataFrame([], columns=['paper_id', 'paper_name', 'ref_no', 'flag'])
     table_layout = EventListener(
         id=f'dblclick_{opt}',
         events=[{'event': 'dblclick', 'props': ['srcElement.className', 'srcElement.id', 'srcElement.innerText']}],
-        children=util.create_table_layout(f'table_{opt}', df_table, table_config, max_rows=50)
+        children=util.create_table_layout(f'table_{opt}', df_table, table_config, max_rows=page_size,
+                                          virtualization=False, row_selectable=False,
+                                          page_current=page_current,
+                                          active_cell=active_cell)
     )
     return table_layout
 
@@ -260,15 +283,33 @@ def gen_current_paper_detail(paper_id):
     paper = lineage_graph.get(paper_id, {}).get('paper', None)
     if paper is None:
         return None
+    paper = copy.deepcopy(paper)
+    paper['abstract'] = paper['abstract'].replace('\n', ' ')
     columns_info = {
-        'paper_id': {'id': 'paper_paper_id', 'name': 'Paper ID', 'height': 25},
-        'publish_date': {'id': 'paper_publish_date', 'name': 'Publish Date', 'height': 25},
+        'paper_id': {'id': 'paper_paper_id', 'name': 'Paper ID', 'height': 23},
+        'publish_date': {'id': 'paper_publish_date', 'name': 'Publish Date', 'height': 23},
+        'paper_name': {'id': 'paper_paper_name', 'name': 'Paper Name', 'height': 45,
+                       'style': {'font-weight': 'bold', 'font-size': 13}},
+        'abstract': {'id': 'paper_abstract', 'name': 'Abstract', 'height': 160},
+        'authors': {'id': 'paper_authors', 'name': 'Authors', 'height': 60},
+        # 'weblink': {'id': 'paper_weblink', 'name': 'Web Site', 'height': 42}
+    }
+    return util.detail(paper, columns_info, 90, 450, 'id_current_paper_detail')
+
+
+def gen_paper_summary(paper_id, layout_id):
+    lineage_graph = state.lineage_graph
+    paper = lineage_graph.get(paper_id, {}).get('paper', None)
+    if paper is None:
+        return None
+    columns_info = {
+        'paper_id': {'id': 'paper_paper_id', 'name': 'Paper ID', 'height': 23},
         'paper_name': {'id': 'paper_paper_name', 'name': 'Paper Name', 'height': 50,
                        'style': {'font-weight': 'bold', 'font-size': 13}},
-        'authors': {'id': 'paper_authors', 'name': 'Authors', 'height': 120},
-        'weblink': {'id': 'paper_weblink', 'name': 'Web Site', 'height': 42}
+        'abstract': {'id': 'paper_abstract', 'name': 'Abstract', 'height': 120},
+        # 'authors': {'id': 'paper_authors', 'name': 'Authors', 'height': 40},
     }
-    return util.detail(paper, columns_info, 100, 450, 'id_current_paper_detail')
+    return util.detail(paper, columns_info, 90, 750, layout_id)
 
 
 def create_lineage_relations(paper_id, target=None):
@@ -290,8 +331,9 @@ layout = html.Div([
     dcc.Store(id='store_lineage_paper_id', data=None),
     # core, target, src_link, target_link
     dcc.Store(id='store_lineage_relations', data=None),
-    # core, visit_traces, cur_pos
+    # core, visit_traces, pos
     dcc.Store(id='store_lineage_explore', data=None),
+    dcc.Store(id='lineage_paper_pdf_url', data=None),
 
     # 论文谱系查询
     dbc.Row(dbc.Col(navbar, width=15),
@@ -300,26 +342,29 @@ layout = html.Div([
         # 源论文 和 目标论文选择
         html.Div([
             html.Div([
-                html.Div(html.Label('Source Paper:'), className='mr-5', style={'width': 90}),
-                html.Div(html.Label(state.current_paper, id='id_src_paper'), className='ml-5')
+                html.Div(html.Label('Source Paper:'), className='mr-10', style={'width': 90}),
+                html.Div(html.Label(state.current_paper, id='id_src_paper'),
+                         className='div-border ml-5',
+                         style={'width': 350})
             ], className='div-flex-left', style={'width': '40%', 'height': 25}),
             html.Div([
                 html.Div(html.Label('Target Paper:'), className='mr-10'),
-                html.Div(html.Label('', id='id_tgt_paper'), className='ml-10',
-                         style={'width': 150}),
+                html.Div(html.Label('', id='id_tgt_paper'),
+                         className='div-border ml-10',
+                         style={'width': 350}),
+            ], className='div-flex-left', style={'width': '40%', 'height': 35}),
+            html.Div([
                 html.Div(dcc.Input('Attention is all you need', id='id_tgt_match_pat',
                                    style={'width':150, 'height': 25, 'margin-left': 10})),
-            ], className='div-flex-left mt-2 mb-2', style={'width': '40%', 'height': 35}),
-            html.Div([
-                html.Div(html.Button('选择', id='btn_select_tgt', style={'height': 25, 'margin-left': 10}))
-            ]),
-        ], className='div-flex-left mb-2',
+                html.Div(html.Button('选择', id='btn_select_tgt', style={'height': 25, 'margin-left': 1}))
+            ], className='div-flex-left'),
+        ], className='div-flex-left',
             style={
-                  'width': '1200px', 'height': 35}
+                  'width': '1200px', 'height': 30}
         ),
         # 论文关系链
         html.Div(id='id_lineage'),
-    ], className='div-border mb-10'),
+    ], className='mb-10'),
     # 论文访问轨迹记录
     html.Div([
         html.Div(
@@ -330,40 +375,65 @@ layout = html.Div([
                  id='id_visit_traces',
                  className='div-flex-left mb-2 ml-5'
                  )
-    ], className='div-flex-left', style={'width': '100%', 'height': 25}),
+    ], className='div-flex-left mb-10', style={'width': '100%', 'height': 25}),
     # 论文关系区
     html.Div([
         html.Div([
-            html.Div(gen_citations_or_references_table(None, opt='citations'),
-                     id='id_paper_citations', className='div1 div-border ml-5 mr-20',
-                     style={'display': 'inline-block', 'width': '40%', 'height': 350}
+            html.Div([
+                html.Div(gen_citations_or_references_table(None, opt='citations'),
+                         id='id_paper_citations',
+                         style={'display': 'inline-block', 'height': 315, 'margin-bottom': '1px'}
+                ),
+                html.Div([
+                    html.Button('读论文', id='btn_read_citation',
+                                className='centered-button mr-10',
+                                style={'width': 80, 'height': 25}),
+                ], className='div-flex-center', style={'height': 25, 'margin-top': '1px'})
+            ], className='div1 div-border ml-10 mr-5',
+                style={'width': '40%', 'height': 370}
             ),
             # 当前论文概要信息
             html.Div([
                 html.Div([], id='id_current_paper',
-                         className='div-flex-left div-border mb-2',
-                         style={'height': 315, 'margin-bottom': '1px'}),
+                         className='div-flex-left mt-2 mb-2',
+                         style={'height': 330, 'margin-bottom': '1px'}),
                 # 论文访问 向前/向后 按钮
                 html.Div([
-                    html.Button('Back', id='btn_back',
-                                className='centered-button mr-10',
+                    html.Button('<<', id='btn_back',
+                                className='centered-button mr-5',
                                 style={'width': 80, 'height': 25}),
-                    html.Button('Forward', id='btn_forward',
-                                className='centered-button ml-10',
+                    html.Button('>>', id='btn_forward',
+                                className='centered-button ml-5',
+                                style={'width': 80, 'height': 25}),
+                    html.Button('读论文', id='btn_read_cur_paper',
+                                className='centered-button ml-20',
                                 style={'width': 80, 'height': 25}),
                 ],
-                    className='div-flex-center div-border',
+                    className='div-flex-center',
                     style={'height': 25, 'margin-top': '1px'}),
             ], className='div-border ml-10 mr-10',
-                style={'width': '30%', 'height': 350}),
-            html.Div(gen_citations_or_references_table(None, opt='references'),
-                     id='id_paper_refs', className='div3 div-border ml-20 mr-5',
-                     style={'display': 'inline-block', 'width': '40%', 'height': 350})
-        ], className='div-flex-left', style={'width': '100%', 'height': 360}),
-    ], className='div-border mb-10'),
-    html.Div([], id='id_paper_detail',
-             className='div-border',
-             style={'width': '100%', 'height': 150}),
+                style={'width': '30%', 'height': 370}),
+            html.Div([
+                html.Div(gen_citations_or_references_table(None, opt='references'),
+                     id='id_paper_refs',
+                     style={'display': 'inline-block', 'height': 315, 'margin-bottom': '1px'}),
+                html.Div([
+                    html.Button('读论文', id='btn_read_reference',
+                                className='centered-button mr-10',
+                                style={'width': 80, 'height': 25}),
+                ], className='div-flex-center', style={'height': 25, 'margin-top': '1px'}),
+            ], className='div3 div-border ml-5 mr-5',
+                style={'width': '40%', 'height': 370}
+            )
+        ], className='div-flex-left', style={'width': '100%', 'height': 370}),
+    ], className='mb-10'),
+    html.Div([
+        html.Div(id='div_summary_citation', className='div-border mr-5', style={'width': 760}),
+        # html.Div(id='div_dummy', style={'width': 465, 'height': 150}),
+        html.Div(id='div_summary_reference', className='div-border ml-5', style={'width': 760})
+    ], id='id_paper_detail',
+             className='div-flex-left-top',
+             style={'width': '100%'}),
     dbc.Modal([
         dbc.ModalHeader("选择关联论文"),
         dbc.ModalBody(
@@ -409,6 +479,7 @@ def select_lineage_target(n_clicks, target_match_pat, lineage_relations):
 
 @callback([Output("id_select_target_dialog", "is_open", allow_duplicate=True),
            Output('id_tgt_paper', 'children', allow_duplicate=True),
+           Output('id_tgt_paper', 'title', allow_duplicate=True),
            Output('store_lineage_relations', 'data', allow_duplicate=True)],
           [Input('btn_close_modal_select_target', 'n_clicks'),
            Input('store_lineage_relations', 'data'),
@@ -422,7 +493,7 @@ def select_lineage_target(n_clicks, target_match_pat, lineage_relations):
 def on_selected_target(n_clicks, lineage_relations, active_cell, page_current, page_size, table_data):
     log(f'callback on_selected_target(): entered.')
     if not ctx.triggered:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_close_modal_select_target':
         if page_current is None:
             page_current = 0
@@ -433,10 +504,13 @@ def on_selected_target(n_clicks, lineage_relations, active_cell, page_current, p
         if len(table_data) > 0:
             row = table_data[selected_index]
             target = row['paper_id']
+            paper = state.get_paper(target)
+            paper_name = paper.get('paper_name') if paper else None
+            paper_name_show = paper_name if paper_name is not None and len(paper_name) < 45 else (paper_name[:42] + '...')
             log(f'callback on_selected_target(): selected target={target}')
             src = lineage_relations.get('core')
-            return False, target, create_lineage_relations(src, target)
-    return dash.no_update, dash.no_update, dash.no_update
+            return False, f'{target} - {paper_name_show}', f'{target} - {paper_name}', create_lineage_relations(src, target)
+    return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
 
 @callback(
@@ -464,6 +538,7 @@ def get_data_from_url(pathname, search, href):
 @callback(
     [Output('store_lineage_relations', 'data', allow_duplicate=True),
      Output('id_src_paper', 'children'),
+     Output('id_src_paper', 'title'),
      Output('id_lineage', 'children')
      ],
     [Input('store_lineage_relations', 'data'),
@@ -474,12 +549,15 @@ def get_data_from_url(pathname, search, href):
 def get_lineage_relations(lineage_relations, target):
     log(f'callback get_lineage_relations(): entered.')
     if lineage_relations is None:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
     paper_id = lineage_relations.get('core', None)
+    paper = state.get_paper(paper_id)
+    paper_name = paper.get('paper_name') if paper else None
+    paper_name_show = paper_name if paper_name is not None and len(paper_name) < 45 else (paper_name[:42] + '...')
     src_link = lineage_relations.get('src_link')
     lineage_relations_layout = generate_lineage_graph(src_link, None)
     print(f'DEBUG: get_lineage_relations(): lineage_relations_layout={lineage_relations_layout}')
-    return create_lineage_relations(paper_id, target), paper_id, lineage_relations_layout
+    return create_lineage_relations(paper_id, target), f'{paper_id} - {paper_name_show}', f'{paper_id} - {paper_name}', lineage_relations_layout
 
 
 @callback(
@@ -501,10 +579,12 @@ def update_by_lineage_explore(lineage_explore):
     paper_id = visit_traces[pos]
     log(f'callback update_by_lineage_explore(): paper_id={paper_id}')
     table_paper_detail = gen_current_paper_detail(paper_id)
-    table_citations_layout = gen_citations_or_references_table(paper_id, opt='citations', flag_refs=visit_traces)
-    table_references_layout = gen_citations_or_references_table(paper_id, opt='references', flag_refs=visit_traces)
-    visit_traces = gen_visit_traces_layout(lineage_explore)
-    return table_paper_detail, table_citations_layout, table_references_layout, visit_traces
+    table_citations_layout = gen_citations_or_references_table(paper_id, opt='citations',
+                                                               lineage_explore=lineage_explore)
+    table_references_layout = gen_citations_or_references_table(paper_id, opt='references',
+                                                                lineage_explore=lineage_explore)
+    visit_traces_layout = gen_visit_traces_layout(lineage_explore)
+    return table_paper_detail, table_citations_layout, table_references_layout, visit_traces_layout
 
 
 @callback(
@@ -624,6 +704,44 @@ def on_dblclick_table_citations(event, lineage_explore, active_cell, page_curren
         raise PreventUpdate
 
 
+@callback(Output('div_summary_reference', 'children', allow_duplicate=True),
+          [Input('table_references', 'active_cell'),
+           Input('table_references', 'page_current'),
+           State('table_references', 'page_size'),
+           State('table_references', 'data')],
+          prevent_initial_call=True,
+          suppress_callback_exceptions=True
+)
+def show_reference_summary(active_cell, page_current, page_size, table_data):
+    log(f'callback show_reference_summary() enter.')
+    if active_cell is None:
+        return dash.no_update
+    row = util.web_table_row(active_cell, page_current, page_size, table_data)
+    paper_id = row.get('paper_id', None) if row else None
+    if paper_id is None:
+        return dash.no_update
+    return gen_paper_summary(paper_id, 'id_summary_reference')
+
+
+@callback(Output('div_summary_citation', 'children', allow_duplicate=True),
+          [Input('table_citations', 'active_cell'),
+           Input('table_citations', 'page_current'),
+           State('table_citations', 'page_size'),
+           State('table_citations', 'data')],
+          prevent_initial_call=True,
+          suppress_callback_exceptions=True
+)
+def show_citation_summary(active_cell, page_current, page_size, table_data):
+    log(f'callback show_citation_summary() enter.')
+    if active_cell is None:
+        return dash.no_update
+    row = util.web_table_row(active_cell, page_current, page_size, table_data)
+    paper_id = row.get('paper_id', None) if row else None
+    if paper_id is None:
+        return dash.no_update
+    return gen_paper_summary(paper_id, 'id_summary_citation')
+
+
 @callback(Output('store_lineage_explore', 'data', allow_duplicate=True),
           [Input('btn_forward', 'n_clicks'),
            Input('store_lineage_explore', 'data')],
@@ -669,4 +787,86 @@ def visit_backward(n_clicks, lineage_explore):
             return lineage_explore
     return dash.no_update
 
+
+@callback(Output('lineage_paper_pdf_url', 'data', allow_duplicate=True),
+          [Input('btn_read_cur_paper', 'n_clicks'),
+           Input('store_lineage_explore', 'data')
+           ],
+          prevent_initial_call=True
+)
+def open_cur_paper_pdf(n_clicks, lineage_explore):
+    log(f'callback open_cur_paper_pdf(): entered.')
+    if not ctx.triggered:
+        return dash.no_update
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_read_cur_paper':
+        if n_clicks > 0 and (lineage_explore is not None):
+            visit_traces = lineage_explore.get('visit_traces', None)
+            pos = lineage_explore.get('pos')
+            paper_id = visit_traces[pos] if visit_traces else None
+            if not paper_id:
+                return dash.no_update
+            log(f'callback open_cur_paper_pdf(): curent paper_id = {paper_id}')
+            papers = state.data_dict('papers')
+            doclink = papers.get(paper_id, {}).get('doclink')
+            if not doclink:
+                doclink = papers.get(paper_id, {}).get('weblink')
+            log(f'callback open_cur_paper_pdf(): url={doclink}')
+            if doclink:
+                return {"url": f'/comment?paper_id={paper_id}'}
+    return dash.no_update
+
+
+@callback(Output('lineage_paper_pdf_url', 'data', allow_duplicate=True),
+          [Input('btn_read_citation', 'n_clicks'),
+           Input('table_citations', 'active_cell'),
+           Input('table_citations', 'page_current'),
+           State('table_citations', 'page_size'),
+           State('table_citations', 'data')],
+          prevent_initial_call=True
+)
+def open_citation_pdf(n_clicks, active_cell, page_current, page_size, table_data):
+    log(f'callback open_citation_pdf(): entered.')
+    if not ctx.triggered:
+        return dash.no_update
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_read_citation':
+        row = util.web_table_row(active_cell, page_current, page_size, table_data)
+        paper_id = row.get('paper_id', None) if row else None
+        if paper_id is None:
+            return dash.no_update
+        return {"url": f'/comment?paper_id={paper_id}'}
+    return dash.no_update
+
+
+@callback(Output('lineage_paper_pdf_url', 'data', allow_duplicate=True),
+          [Input('btn_read_reference', 'n_clicks'),
+           Input('table_references', 'active_cell'),
+           Input('table_references', 'page_current'),
+           State('table_references', 'page_size'),
+           State('table_references', 'data')],
+          prevent_initial_call=True
+)
+def open_reference_pdf(n_clicks, active_cell, page_current, page_size, table_data):
+    log(f'callback open_reference_pdf(): entered.')
+    if not ctx.triggered:
+        return dash.no_update
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_read_reference':
+        row = util.web_table_row(active_cell, page_current, page_size, table_data)
+        paper_id = row.get('paper_id', None) if row else None
+        if paper_id is None:
+            return dash.no_update
+        return {"url": f'/comment?paper_id={paper_id}'}
+    return dash.no_update
+
+
+clientside_callback(
+    """
+    function(url_data) {
+        if (url_data && url_data.url) {
+            window.open(url_data.url, '_blank'); // Open the URL in a new tab
+        }
+        return null;
+    }
+    """,
+    Input('lineage_paper_pdf_url', 'data')  # Triggered when the store data changes
+)
 

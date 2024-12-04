@@ -84,6 +84,13 @@
     align-items: center;
 }
 
+.div-flex-left-top{
+    display: flex;
+    justify-content: flex_start;
+    vertical-align: middle;
+    align-items: top;
+}
+
 .div-flex-center{
     display: flex;
     justify-content: center;

@@ -533,6 +533,7 @@ def detail(row, columns_info, name_width, field_width, detail_id):
                                 s_col.get('style', None))
                           for s_col in cv]
             fields.append(html.Div(children=sub_fields,
+                                   className='mb-2',
                                    style={
                                        'display': 'flex',
                                        'justify-content': 'flex-start',
@@ -574,7 +575,10 @@ def field(name, value, field_id, name_width, field_height, field_width, style=No
     return layout
 
 
-def create_table_layout(table_name, dataframe, table_config, max_rows=10):
+def create_table_layout(table_name, dataframe, table_config, max_rows=10,
+                        virtualization=True, row_selectable='multi',
+                        page_current=0,
+                        active_cell=None):
     _columns = [{'name': col, 'id': col} for col in dataframe.columns]
     data = dataframe.to_dict('records')
     table_layout = dash_table.DataTable(
@@ -627,8 +631,10 @@ def create_table_layout(table_name, dataframe, table_config, max_rows=10):
         ],
         tooltip_duration=None,
         fixed_rows={'headers': True, 'data': 0},
-        row_selectable='multi',
-        virtualization=True
+        row_selectable=row_selectable,
+        virtualization=virtualization,
+        page_current=page_current,
+        active_cell=active_cell
     )
     return table_layout
 
@@ -638,6 +644,17 @@ def generate_table(table_name, dataframe, max_rows=10):
     table_config = {'table_width': tbl_data.table_width(),
                     'columns': tbl_data.column_settings}
     return create_table_layout(table_name, dataframe, table_config, max_rows=max_rows)
+
+
+def web_table_row(active_cell, page_current, page_size, table_data):
+    if page_current is None:
+        page_current = 0
+    if active_cell is None:
+        return None
+    selected_index = active_cell['row'] + page_current * page_size
+    if len(table_data) > selected_index:
+        return table_data[selected_index]
+    return None
 
 
 g_state = None

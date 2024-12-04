@@ -45,15 +45,6 @@ layout = html.Div(
                   html.Div(dcc.Input(id='paper_title_searching', value='attention is all you need', type='search',
                                      style={'font-size': 12, 'height': 25, 'width': 200}),
                            className='div2'),
-                  # html.Div(dcc.Dropdown(['Local', 'Google'], '',
-                  #                       placeholder="select site",
-                  #                       id='search_site',
-                  #                       style={'font-size': 12, 'width': 110, 'height': "15px", 'lineHeight': 1,
-                  #                              'margin-left': 1
-                  #                              }
-                  #                       ),
-                  #          className='div2',
-                  #          style={'vertical-align': 'top', 'height': 20}),
                   html.Div(html.Button('搜索',
                                        id='btn_search', n_clicks=0,
                                        style={'font-size': 12, 'height': 25, 'lineHeight': 1,
@@ -542,7 +533,6 @@ def update_verifying_ref_log(n, is_open, status):
     prevent_initial_call=True
 )
 def open_paper_pdf(n_clicks):
-    url = 'https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/HintonDengYuEtAl-SPM2012.pdf'
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_view_paper':
         if n_clicks > 0:
             paper_id = state.current_paper
