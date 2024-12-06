@@ -14,22 +14,8 @@ set_log_file(os.path.split(__file__)[-1], timestamp=True)
 
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates@V1.0.4/dbc.min.css"
 bWLwgP = "https://codepen.io/chriddyp/pen/bWLwgP.css"
-external_stylesheets = [bWLwgP, dbc.themes.BOOTSTRAP, dbc_css, dbc.themes.MINTY] #, dbc.themes.SUPERHERO]
-external_scripts = ['https://cdn.quilljs.com/1.3.6/quill.js'] #, 'assets/custom.js']
-
-navbar = dbc.NavbarSimple(
-    [
-        dbc.NavItem(dbc.NavLink("Home", href="/")),
-        dbc.NavItem(dbc.NavLink("Favorites", href="/favorite")),
-        dbc.NavItem(dbc.NavLink("Comment", href="/comment")),
-    ],
-    brand="Wingoal Pan",
-    brand_href="#",
-    color="primary",
-    dark=True,
-    style={'height': '40px', 'margin-bottome': '5px'}
-)
-
+external_stylesheets = [bWLwgP, dbc.themes.BOOTSTRAP, dbc_css, dbc.themes.MINTY]
+external_scripts = ['https://cdn.quilljs.com/1.3.6/quill.js']
 
 server = Flask(__name__)
 app_paper_browse = dash.Dash(__name__, server=server,

@@ -25,7 +25,6 @@ td_refs = state.table('refs')
 navbar = dbc.NavbarSimple(
     [
         dbc.NavItem(dbc.NavLink("Home", href="/")),
-        # dbc.NavItem(dbc.NavLink("Favorites", href="/favorite")),
         dbc.NavItem(dbc.NavLink("Lineage", href="/lineage")),
     ],
     brand="Paper Miner",
@@ -93,8 +92,7 @@ layout = html.Div(
                      className='div2'
                      )
         ], id='group',
-            style={#'display': 'inline-block',
-                   "display": "flex",
+            style={"display": "flex",
                    "justify-content": "flex-start",
                    'height': '290px',
                    "margin-bottom": "10px"}
@@ -201,10 +199,9 @@ layout = html.Div(
                             ], prevent_initial_call=True
                            )
 def search_paper(n_clicks, title_for_searching):
-    print(f'n_clicks={n_clicks}, searching title: {title_for_searching}')
+    log(f'callback search_paper(): entered.')
     if title_for_searching is None:
         return dash.no_update
-    print(f'searching title: {title_for_searching}')
     login = state.login
     _df_papers = db.query_dataframe(f'''SELECT p.paper_id, p.paper_name, p.publish_date, p.authors, f.login as flag
                                         FROM (SELECT * FROM papers WHERE paper_name like "%{title_for_searching}%") p 
@@ -213,6 +210,7 @@ def search_paper(n_clicks, title_for_searching):
                                         ORDER BY publish_date DESC
                                     ''')
     util.df_flag2star(_df_papers)
+    log(f'callback search_paper(): return generate_table()')
     return util.generate_table('papers', _df_papers, max_rows=50)
 
 
@@ -222,6 +220,7 @@ def search_paper(n_clicks, title_for_searching):
           prevent_initial_call=True
           )
 def filter_favorites(n_clicks):
+    log(f'callback filter_favorites(): entered.')
     login = state.login
     _df_papers = db.query_dataframe(f'''SELECT p.paper_id, p.paper_name, p.publish_date, p.authors, f.login as flag
                                         FROM papers p, favorites f
@@ -229,39 +228,32 @@ def filter_favorites(n_clicks):
                                         ORDER BY publish_date DESC
                                     ''')
     util.df_flag2star(_df_papers)
+    log(f'callback filter_favorites(): return generate_table()')
     return util.generate_table('papers', _df_papers, max_rows=50)
 
 
 @callback(
     Output('papers', 'style_data_conditional'),
-    [Input('papers', 'data')]
+    [Input('papers', 'data'),
+     Input('papers', 'page_current'),
+     Input('papers', 'page_size')]
 )
-def update_paper_row_style(data):
-    style_conditions = []
-    for row in data:
-        if row['flag'] == '☆':
-            style_conditions.append({
-                'if': {'row_index': data.index(row)},
-                'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
-                'fontWeight': 'bold'
-            })
-    return style_conditions
+def update_paper_row_style(data, page_current, page_size):
+    if page_current is None:
+        page_current = 0
+    return util.update_row_style_by_flag(data[page_current*page_size: page_current*page_size + page_size])
 
 
 @callback(
     Output('refs', 'style_data_conditional'),
-    [Input('refs', 'data')]
+    [Input('refs', 'data'),
+     Input('refs', 'page_current'),
+     Input('refs', 'page_size')]
 )
-def update_ref_row_style(data):
-    style_conditions = []
-    for row in data:
-        if row['flag'] == '☆':
-            style_conditions.append({
-                'if': {'row_index': data.index(row)},
-                'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
-                'fontWeight': 'bold'
-            })
-    return style_conditions
+def update_ref_row_style(data, page_current, page_size):
+    if page_current is None:
+        page_current = 0
+    return util.update_row_style_by_flag(data[page_current*page_size: page_current*page_size + page_size])
 
 
 @callback([Output('div_paper_detail', 'children'),
@@ -275,15 +267,11 @@ def update_ref_row_style(data):
                             ])
 def update_paper_related(active_cell, page_current, page_size, table_data):
     log(f'callback update_paper_related()')
-    # global df_refs
-    if page_current is None:
-        page_current = 0
     if active_cell is None:
         active_cell = {"row": 0, "column": 0, "column_id": 'paper_id'}
 
-    selected_index = active_cell['row'] + page_current * page_size
-    row = table_data[selected_index]
-    paper_id = row['paper_id']
+    row = util.web_table_row(active_cell, page_current, page_size, table_data)
+    paper_id = row.get('paper_id', None) if row is not None else None
     # 活动paper需要作为全局变量 保存
     state.current_paper = paper_id
     # log(
@@ -304,28 +292,22 @@ def update_paper_related(active_cell, page_current, page_size, table_data):
                             State("refs", "data")])
 def update_reference(active_cell, page_current, page_size, table_data):
     paper_id = state.current_paper
-    if page_current is None:
-        page_current = 0
     if active_cell is None:
         active_cell = {"row": 0, "column": 0, "column_id": 'ref_no'}
-    selected_index = active_cell['row'] + page_current * page_size
-    if len(table_data) <= 0:
+    row = util.web_table_row(active_cell, page_current, page_size, table_data)
+    if row is None:
         return '', active_cell
-    row = table_data[selected_index]
     select_ref = td_refs.get_row({'p_paper_id': paper_id, 'ref_no': row['ref_no']})
-    # print(f'update_reference(): selected_index={selected_index}, paper_id={paper_id}, select_ref={select_ref}')
     if select_ref and select_ref['paper_id']:
         state.current_ref = select_ref['paper_id']
         html_ref_detail = td_refs.detail(select_ref)
     else:
         state.current_ref = None
         html_ref_detail = td_refs.detail(select_ref, settings_index=1)
-    # print(f'ref_key: {ref_key}, ref_detail: {html_ref_detail}')
     return html_ref_detail, active_cell
 
 
-@callback(Output('div_papers', 'children', allow_duplicate=True),
-          [Input('btn_favorite', 'n_clicks'),
+@callback([Input('btn_favorite', 'n_clicks'),
            Input('papers', 'active_cell'),
            Input('papers', 'selected_rows'),
            Input('papers', 'page_current'),
@@ -334,31 +316,19 @@ def update_reference(active_cell, page_current, page_size, table_data):
           prevent_initial_call=True
           )
 def add_favorites(n_clicks, active_cell, selected_rows, page_current, page_size, table_data):
-    paper_id = state.current_paper
     log(f'callback add_favorites(): entered.')
     if not ctx.triggered:
-        return dash.no_update
+        return
 
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_favorite':
-        rows = selected_rows if selected_rows is not None else []
-        if page_current is None:
-            page_current = 0
-        if (active_cell is not None) and (active_cell['row'] not in rows):
-            selected_index = active_cell['row'] + page_current * page_size
-            rows.append(selected_index)
-        if len(rows) == 0:
-            log(f'No paper selected or activated')
-            return dash.no_update
-        for row in rows:
-            data_row = table_data[row]
-            paper_id = data_row['paper_id']
-            login = state.login
-            state.add_favorite(login, paper_id)
-    return dash.no_update
+        added_count = util.add_selected_favorite_papers(active_cell, selected_rows,
+                                                        page_current, page_size,
+                                                        table_data)
+        log(f'callback add_favorites(): added {added_count} favorite papers')
+    return
 
 
-@callback(Output('div_refs', 'children', allow_duplicate=True),
-          [Input('btn_favorite_ref', 'n_clicks'),
+@callback([Input('btn_favorite_ref', 'n_clicks'),
            Input('refs', 'active_cell'),
            Input('refs', 'selected_rows'),
            Input('refs', 'page_current'),
@@ -367,29 +337,16 @@ def add_favorites(n_clicks, active_cell, selected_rows, page_current, page_size,
           prevent_initial_call=True
           )
 def add_favorite_refs(n_clicks, active_cell, selected_rows, page_current, page_size, table_data):
-    paper_id = state.current_paper
     log(f'callback add_favorite_refs(): entered.')
     if not ctx.triggered:
-        return dash.no_update
+        return
 
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_favorite_ref':
-        rows = selected_rows if selected_rows is not None else []
-        if page_current is None:
-            page_current = 0
-        if (active_cell is not None) and (active_cell['row'] not in rows):
-            selected_index = active_cell['row'] + page_current * page_size
-            rows.append(selected_index)
-        if len(rows) == 0:
-            log(f'No reference paper selected or activated')
-            return dash.no_update
-        for row in rows:
-            data_row = table_data[row]
-            if not data_row['ref_id']:
-                continue
-            paper_id = data_row['ref_id']
-            login = state.login
-            state.add_favorite(login, paper_id)
-    return dash.no_update
+        added_count = util.add_selected_favorite_papers(active_cell, selected_rows,
+                                                        page_current, page_size,
+                                                        table_data)
+        log(f'callback add_favorite_refs(): added {added_count} favorite papers')
+    return
 
 
 @callback(Output("extract_ref_progress", "is_open"),
@@ -406,21 +363,15 @@ def extract_refs(n_clicks1, n_clicks2, active_cell, page_current, page_size, tab
     log(f'callback extract_refs(): entered.')
     if not ctx.triggered:
         return dash.no_update
-
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_extract_ref':
-        if page_current is None:
-            page_current = 0
-        if active_cell is None:
+        row = util.web_table_row(active_cell, page_current, page_size, table_data)
+        paper_id = row.get('paper_id', None) if row is not None else None
+        if paper_id is None:
             log('callback extract_refs(): no cell selected')
             return dash.no_update
-
-        selected_index = active_cell['row'] + page_current * page_size
-        if len(table_data) > 0:
-            row = table_data[selected_index]
-            paper_id = row['paper_id']
-            log(f'callback extract_refs(): trying start_analyzing_paper({paper_id}) ... ')
-            taskm.start_analyzing_paper(paper_id, drill=False)
-            state.current_paper = paper_id
+        log(f'callback extract_refs(): trying start_analyzing_paper({paper_id}) ... ')
+        taskm.start_analyzing_paper(paper_id, drill=False)
+        state.current_paper = paper_id
         return True
     elif ctx.triggered[0]['prop_id'].split('.')[0] == 'close-modal':
         return False
@@ -484,7 +435,6 @@ def verify_reference(n_clicks1, n_clicks2, active_cell, selected_rows, page_curr
         if len(rows) == 0:
             log(f'callback verify_reference(): No reference selected or activated')
             return False
-        task_schedule_result = ''
         for row in rows:
             if len(table_data) > 0:
                 data_row = table_data[row]
@@ -552,7 +502,6 @@ def open_paper_pdf(n_clicks):
     prevent_initial_call=True
 )
 def open_ref_paper_pdf(n_clicks):
-    url = 'https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/HintonDengYuEtAl-SPM2012.pdf'
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_view_ref':
         if n_clicks > 0:
             paper_id = state.current_ref
@@ -577,6 +526,6 @@ clientside_callback(
         return null;
     }
     """,
-    Input('paper_pdf_url', 'data')  # Triggered when the store data changes
+    Input('paper_pdf_url', 'data')  # Triggered when the stored paper_pdf_url changes
 )
 

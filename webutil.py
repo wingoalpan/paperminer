@@ -643,7 +643,7 @@ def generate_table(table_name, dataframe, max_rows=10):
     tbl_data = state.table(table_name)
     table_config = {'table_width': tbl_data.table_width(),
                     'columns': tbl_data.column_settings}
-    return create_table_layout(table_name, dataframe, table_config, max_rows=max_rows)
+    return create_table_layout(table_name, dataframe, table_config, max_rows=max_rows, virtualization=False)
 
 
 def web_table_row(active_cell, page_current, page_size, table_data):
@@ -655,6 +655,41 @@ def web_table_row(active_cell, page_current, page_size, table_data):
     if len(table_data) > selected_index:
         return table_data[selected_index]
     return None
+
+
+def update_row_style_by_flag(data):
+    style_conditions = []
+    for row in data:
+        if row['flag'] == '☆':
+            style_conditions.append({
+                'if': {'row_index': data.index(row)},
+                'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
+                'fontWeight': 'bold'
+            })
+    return style_conditions
+
+
+def add_selected_favorite_papers(active_cell, selected_rows, page_current, page_size, table_data):
+    print(f'DEBUG: add_selected_favorite_papers() entered.')
+    rows = selected_rows if selected_rows is not None else []
+    if page_current is None:
+        page_current = 0
+    if (active_cell is not None) and (active_cell['row'] not in rows):
+        selected_index = active_cell['row'] + page_current * page_size
+        rows.append(selected_index)
+    added_favorite_count = 0
+    print(f'DEBUG: add_selected_favorite_papers(): selected rows = {rows}')
+    for row in rows:
+        data_row = table_data[row]
+        paper_id = data_row.get('paper_id', None)
+        if paper_id is None:
+            paper_id = data_row.get('ref_id', None)
+        if paper_id is None:
+            continue
+        login = state.login
+        state.add_favorite(login, paper_id)
+        added_favorite_count += 1
+    return added_favorite_count
 
 
 g_state = None

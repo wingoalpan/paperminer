@@ -24,7 +24,6 @@ state = util.get_state()
 navbar = dbc.NavbarSimple(
     [
         dbc.NavItem(dbc.NavLink("Home", href="/")),
-        # dbc.NavItem(dbc.NavLink("Favorites", href="/favorite")),
         dbc.NavItem(dbc.NavLink("Lineage", href="/lineage")),
     ],
     brand="Paper Miner",
@@ -221,14 +220,11 @@ def gen_citations_or_references_table(paper_id, opt='citations', lineage_explore
                         active_cell = {'row': i % page_size, 'column': 0}
     else:
         df_table = pd.DataFrame([], columns=['paper_id', 'paper_name', 'ref_no', 'flag'])
-    table_layout = EventListener(
-        id=f'dblclick_{opt}',
-        events=[{'event': 'dblclick', 'props': ['srcElement.className', 'srcElement.id', 'srcElement.innerText']}],
-        children=util.create_table_layout(f'table_{opt}', df_table, table_config, max_rows=page_size,
-                                          virtualization=False, row_selectable=False,
-                                          page_current=page_current,
-                                          active_cell=active_cell)
-    )
+    table_layout = util.create_table_layout(f'table_{opt}', df_table, table_config,
+                                            max_rows=page_size,
+                                            virtualization=False, row_selectable=False,
+                                            page_current=page_current,
+                                            active_cell=active_cell)
     return table_layout
 
 
@@ -328,11 +324,13 @@ def create_lineage_explore(paper_id):
 
 layout = html.Div([
     dcc.Location(id='url_lineage', refresh=False),
-    dcc.Store(id='store_lineage_paper_id', data=None),
     # core, target, src_link, target_link
     dcc.Store(id='store_lineage_relations', data=None),
     # core, visit_traces, pos
     dcc.Store(id='store_lineage_explore', data=None),
+    dcc.Store(id='has_dblclick_on_citations', data=None),
+    dcc.Store(id='has_dblclick_on_references', data=None),
+
     dcc.Store(id='lineage_paper_pdf_url', data=None),
 
     # 论文谱系查询
@@ -380,9 +378,14 @@ layout = html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.Div(gen_citations_or_references_table(None, opt='citations'),
-                         id='id_paper_citations',
-                         style={'display': 'inline-block', 'height': 315, 'margin-bottom': '1px'}
+                html.Div(
+                    EventListener(
+                        id='dblclick_citations',
+                        events=[{'event': 'dblclick', 'props': ['srcElement.innerText', 'pageX']}],
+                        children=gen_citations_or_references_table(None, opt='citations')
+                    ),
+                    id='id_paper_citations',
+                    style={'display': 'inline-block', 'height': 315, 'margin-bottom': '1px'}
                 ),
                 html.Div([
                     html.Button('读论文', id='btn_read_citation',
@@ -414,9 +417,14 @@ layout = html.Div([
             ], className='div-border ml-10 mr-10',
                 style={'width': '30%', 'height': 370}),
             html.Div([
-                html.Div(gen_citations_or_references_table(None, opt='references'),
-                     id='id_paper_refs',
-                     style={'display': 'inline-block', 'height': 315, 'margin-bottom': '1px'}),
+                html.Div(
+                    EventListener(
+                        id='dblclick_references',
+                        events=[{'event': 'dblclick', 'props': ['srcElement.innerText', 'pageX']}],
+                        children=gen_citations_or_references_table(None, opt='references')
+                    ),
+                    id='id_paper_refs',
+                    style={'display': 'inline-block', 'height': 315, 'margin-bottom': '1px'}),
                 html.Div([
                     html.Button('读论文', id='btn_read_reference',
                                 className='centered-button mr-10',
@@ -495,18 +503,13 @@ def on_selected_target(n_clicks, lineage_relations, active_cell, page_current, p
     if not ctx.triggered:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_close_modal_select_target':
-        if page_current is None:
-            page_current = 0
-        if active_cell is None:
-            log('callback on_selected_target(): no cell selected')
-            raise PreventUpdate
-        selected_index = active_cell['row'] + page_current * page_size
-        if len(table_data) > 0:
-            row = table_data[selected_index]
-            target = row['paper_id']
+        row = util.web_table_row(active_cell, page_current, page_size, table_data)
+        target = row.get('paper_id', None) if row else None
+        if target is not None:
             paper = state.get_paper(target)
             paper_name = paper.get('paper_name') if paper else None
-            paper_name_show = paper_name if paper_name is not None and len(paper_name) < 45 else (paper_name[:42] + '...')
+            paper_name_show = paper_name if paper_name is not None and len(paper_name) < 45\
+                else (paper_name[:42] + '...')
             log(f'callback on_selected_target(): selected target={target}')
             src = lineage_relations.get('core')
             return False, f'{target} - {paper_name_show}', f'{target} - {paper_name}', create_lineage_relations(src, target)
@@ -562,8 +565,8 @@ def get_lineage_relations(lineage_relations, target):
 
 @callback(
     [Output('id_current_paper', 'children'),
-     Output('id_paper_citations', 'children'),
-     Output('id_paper_refs', 'children'),
+     Output('dblclick_citations', 'children'),
+     Output('dblclick_references', 'children'),
      Output('id_visit_traces', 'children')
      ],
     [Input('store_lineage_explore', 'data')],
@@ -574,6 +577,7 @@ def update_by_lineage_explore(lineage_explore):
     log(f'callback update_by_lineage_explore(): entered.')
     if lineage_explore is None:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    log(f'callback update_by_lineage_explore(): lineage_explore={lineage_explore}')
     pos = lineage_explore.get('pos')
     visit_traces = lineage_explore.get('visit_traces')
     paper_id = visit_traces[pos]
@@ -589,34 +593,26 @@ def update_by_lineage_explore(lineage_explore):
 
 @callback(
     Output('table_citations', 'style_data_conditional'),
-    [Input('table_citations', 'data')]
+    [Input('table_citations', 'data'),
+     Input('table_citations', 'page_current'),
+     Input('table_citations', 'page_size')]
 )
-def update_table_citations_row_style(data):
-    style_conditions = []
-    for row in data:
-        if row['flag'] == '☆':
-            style_conditions.append({
-                'if': {'row_index': data.index(row)},
-                'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
-                'fontWeight': 'bold'
-            })
-    return style_conditions
+def update_table_citations_row_style(data, page_current, page_size):
+    if page_current is None:
+        page_current = 0
+    return util.update_row_style_by_flag(data[page_current*page_size: page_current*page_size + page_size])
 
 
 @callback(
     Output('table_references', 'style_data_conditional'),
-    [Input('table_references', 'data')]
+    [Input('table_references', 'data'),
+     Input('table_references', 'page_current'),
+     Input('table_references', 'page_size')]
 )
-def update_table_references_row_style(data):
-    style_conditions = []
-    for row in data:
-        if row['flag'] == '☆':
-            style_conditions.append({
-                'if': {'row_index': data.index(row)},
-                'backgroundColor': 'rgb(50,50,50)',  # 满足条件时的背景颜色
-                'fontWeight': 'bold'
-            })
-    return style_conditions
+def update_table_references_row_style(data, page_current, page_size):
+    if page_current is None:
+        page_current = 0
+    return util.update_row_style_by_flag(data[page_current*page_size: page_current*page_size + page_size])
 
 
 @callback(
@@ -630,8 +626,37 @@ def update_output(value):
     return dash.no_update
 
 
-@callback(Output('store_lineage_explore', 'data', allow_duplicate=True),
-          [Input('dblclick_references', 'event'),
+@callback(Output('has_dblclick_on_citations', 'data', allow_duplicate=True),
+          [Input('dblclick_references', 'event')],
+          prevent_initial_call=True,
+          suppress_callback_exceptions=True
+          )
+def record_dblclick_citations(event):
+    log(f'callback record_dblclick_citations(): entered.')
+    page_x = event['pageX']
+    if page_x < 600:
+        log(f'callback record_dblclick_citations(): event={event}')
+        return event
+    return dash.no_update
+
+
+@callback(Output('has_dblclick_on_references', 'data', allow_duplicate=True),
+          [Input('dblclick_references', 'event')],
+          prevent_initial_call=True,
+          suppress_callback_exceptions=True
+          )
+def record_dblclick_references(event):
+    log(f'callback record_dblclick_references(): entered.')
+    page_x = event['pageX']
+    if page_x > 900:
+        log(f'callback record_dblclick_references(): event={event}')
+        return event
+    return dash.no_update
+
+
+@callback([Output('store_lineage_explore', 'data', allow_duplicate=True),
+           Output('has_dblclick_on_references', 'data', allow_duplicate=True)],
+          [Input('has_dblclick_on_references', 'data'),
            Input('store_lineage_explore', 'data'),
            Input('table_references', 'active_cell'),
            Input('table_references', 'page_current'),
@@ -641,33 +666,36 @@ def update_output(value):
           suppress_callback_exceptions=True
 )
 def on_dblclick_table_references(event, lineage_explore, active_cell, page_current, page_size, table_data):
-    log(f'callback on_dblclick_table_references() enter.')
+    log(f'callback on_dblclick_table_references(): enter.')
     if event and active_cell:
-        if page_current is None:
-            page_current = 0
-        selected_index = active_cell['row'] + page_current * page_size
-        data_row = table_data[selected_index]
-        paper_id = data_row['paper_id']
-        log(f'callback on_dblclick_table_references(): selected paper_id = {paper_id}')
+        log(f'callback on_dblclick_table_references(): event = {event}')
+        row = util.web_table_row(active_cell, page_current, page_size, table_data)
+        paper_id = row.get('paper_id', None) if row is not None else None
+        if paper_id is None:
+            return dash.no_update, None
         pos = lineage_explore['pos']
         visit_traces = lineage_explore['visit_traces']
         pos += 1
+        log(f'callback on_dblclick_table_references(): paper_id={paper_id}')
         if pos >= len(visit_traces):
-            visit_traces.append(paper_id)
-        else:
-            last_visited_id = visit_traces[pos]
-            if paper_id != last_visited_id:
-                visit_traces[pos] = paper_id
-                visit_traces = visit_traces[:pos + 1]
+            if paper_id != visit_traces[pos-1]:
+                visit_traces.append(paper_id)
+            else:
+                pos -= 1
+        elif paper_id != visit_traces[pos]:
+            visit_traces[pos] = paper_id
+            visit_traces = visit_traces[:pos + 1]
+        log(f'callback on_dblclick_table_references(): pos={pos}, visit_traces={visit_traces}')
         lineage_explore['visit_traces'] = visit_traces
         lineage_explore['pos'] = pos
-        return lineage_explore
-    else:
-        raise PreventUpdate
+        log(f'callback on_dblclick_table_references(): updated lineage_explore={lineage_explore}')
+        return lineage_explore, None
+    return dash.no_update, None
 
 
-@callback(Output('store_lineage_explore', 'data', allow_duplicate=True),
-          [Input('dblclick_citations', 'event'),
+@callback([Output('store_lineage_explore', 'data', allow_duplicate=True),
+           Output('has_dblclick_on_citations', 'data', allow_duplicate=True)],
+          [Input('has_dblclick_on_citations', 'data'),
            Input('store_lineage_explore', 'data'),
            Input('table_citations', 'active_cell'),
            Input('table_citations', 'page_current'),
@@ -679,29 +707,28 @@ def on_dblclick_table_references(event, lineage_explore, active_cell, page_curre
 def on_dblclick_table_citations(event, lineage_explore, active_cell, page_current, page_size, table_data):
     log(f'callback on_dblclick_table_citations() enter.')
     if event and active_cell:
-        if page_current is None:
-            page_current = 0
-        print(f'DEBUG: on_dblclick_table_citations(): event[srcElement.className] = {event["srcElement.className"]}')
-        selected_index = active_cell['row'] + page_current * page_size
-        data_row = table_data[selected_index]
-        paper_id = data_row['paper_id']
-        log(f'callback on_dblclick_table_citations(): selected paper_id = {paper_id}')
+        log(f'callback on_dblclick_table_citations(): event = {event}')
+        row = util.web_table_row(active_cell, page_current, page_size, table_data)
+        paper_id = row.get('paper_id', None) if row is not None else None
+        if paper_id is None:
+            return dash.no_update, None
         pos = lineage_explore['pos']
         visit_traces = lineage_explore['visit_traces']
+        log(f'callback on_dblclick_table_citations(): paper_id={paper_id}')
         pos -= 1
         if pos < 0:
             pos = 0
-            visit_traces.insert(0, paper_id)
-        else:
-            last_visited_id = visit_traces[pos]
-            if paper_id != last_visited_id:
-                visit_traces[pos] = paper_id
-                visit_traces = visit_traces[pos:]
+            if paper_id != visit_traces[0]:
+                visit_traces.insert(0, paper_id)
+        elif paper_id != visit_traces[pos]:
+            visit_traces[pos] = paper_id
+            visit_traces = visit_traces[pos:]
+        log(f'callback on_dblclick_table_citations(): pos={pos}, visit_traces={visit_traces}')
         lineage_explore['visit_traces'] = visit_traces
         lineage_explore['pos'] = pos
-        return lineage_explore
-    else:
-        raise PreventUpdate
+        log(f'callback on_dblclick_table_citations(): updated lineage_explore={lineage_explore}')
+        return lineage_explore, None
+    return dash.no_update, None
 
 
 @callback(Output('div_summary_reference', 'children', allow_duplicate=True),
@@ -749,7 +776,7 @@ def show_citation_summary(active_cell, page_current, page_size, table_data):
           suppress_callback_exceptions=True
 )
 def visit_forward(n_clicks, lineage_explore):
-    log(f'callback visit_backward() enter.')
+    log(f'callback visit_forward() enter.')
     if not ctx.triggered:
         return dash.no_update
 
@@ -757,9 +784,7 @@ def visit_forward(n_clicks, lineage_explore):
         visit_traces = lineage_explore['visit_traces']
         pos = lineage_explore['pos']
         pos += 1
-        if pos >= len(visit_traces):
-            return dash.no_update
-        else:
+        if pos < len(visit_traces):
             lineage_explore['pos'] = pos
             return lineage_explore
     return dash.no_update
@@ -777,12 +802,9 @@ def visit_backward(n_clicks, lineage_explore):
         return dash.no_update
 
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_back':
-        visit_traces = lineage_explore['visit_traces']
         pos = lineage_explore['pos']
         pos -= 1
-        if pos < 0:
-            return dash.no_update
-        else:
+        if pos >= 0:
             lineage_explore['pos'] = pos
             return lineage_explore
     return dash.no_update
@@ -793,7 +815,7 @@ def visit_backward(n_clicks, lineage_explore):
            Input('store_lineage_explore', 'data')
            ],
           prevent_initial_call=True
-)
+          )
 def open_cur_paper_pdf(n_clicks, lineage_explore):
     log(f'callback open_cur_paper_pdf(): entered.')
     if not ctx.triggered:
@@ -803,15 +825,7 @@ def open_cur_paper_pdf(n_clicks, lineage_explore):
             visit_traces = lineage_explore.get('visit_traces', None)
             pos = lineage_explore.get('pos')
             paper_id = visit_traces[pos] if visit_traces else None
-            if not paper_id:
-                return dash.no_update
-            log(f'callback open_cur_paper_pdf(): curent paper_id = {paper_id}')
-            papers = state.data_dict('papers')
-            doclink = papers.get(paper_id, {}).get('doclink')
-            if not doclink:
-                doclink = papers.get(paper_id, {}).get('weblink')
-            log(f'callback open_cur_paper_pdf(): url={doclink}')
-            if doclink:
+            if paper_id is not None:
                 return {"url": f'/comment?paper_id={paper_id}'}
     return dash.no_update
 
@@ -823,7 +837,7 @@ def open_cur_paper_pdf(n_clicks, lineage_explore):
            State('table_citations', 'page_size'),
            State('table_citations', 'data')],
           prevent_initial_call=True
-)
+          )
 def open_citation_pdf(n_clicks, active_cell, page_current, page_size, table_data):
     log(f'callback open_citation_pdf(): entered.')
     if not ctx.triggered:
@@ -831,9 +845,9 @@ def open_citation_pdf(n_clicks, active_cell, page_current, page_size, table_data
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_read_citation':
         row = util.web_table_row(active_cell, page_current, page_size, table_data)
         paper_id = row.get('paper_id', None) if row else None
-        if paper_id is None:
-            return dash.no_update
-        return {"url": f'/comment?paper_id={paper_id}'}
+        if paper_id is not None:
+            log(f'callback open_citation_pdf(): selected paper {paper_id}')
+            return {"url": f'/comment?paper_id={paper_id}'}
     return dash.no_update
 
 
@@ -844,7 +858,7 @@ def open_citation_pdf(n_clicks, active_cell, page_current, page_size, table_data
            State('table_references', 'page_size'),
            State('table_references', 'data')],
           prevent_initial_call=True
-)
+          )
 def open_reference_pdf(n_clicks, active_cell, page_current, page_size, table_data):
     log(f'callback open_reference_pdf(): entered.')
     if not ctx.triggered:
@@ -852,9 +866,9 @@ def open_reference_pdf(n_clicks, active_cell, page_current, page_size, table_dat
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'btn_read_reference':
         row = util.web_table_row(active_cell, page_current, page_size, table_data)
         paper_id = row.get('paper_id', None) if row else None
-        if paper_id is None:
-            return dash.no_update
-        return {"url": f'/comment?paper_id={paper_id}'}
+        if paper_id is not None:
+            log(f'callback open_reference_pdf(): selected paper {paper_id}')
+            return {"url": f'/comment?paper_id={paper_id}'}
     return dash.no_update
 
 

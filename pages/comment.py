@@ -18,14 +18,13 @@ state = util.get_state()
 navbar = dbc.NavbarSimple(
     [
         dbc.NavItem(dbc.NavLink("Home", href="/")),
-        # dbc.NavItem(dbc.NavLink("Favorites", href="/favorite")),
         dbc.NavItem(dbc.NavLink("Comment", href="/comment")),
     ],
     brand="Paper Miner",
     brand_href="#",
     color="primary",
     dark=True,
-    style={'height': 40, 'margin-bottome': '5px'}
+    style={'height': 40, 'margin-bottom': '5px'}
 )
 
 
@@ -71,7 +70,7 @@ layout = html.Div([
                 maxLength=512,
                 modules={'toolbar': True, 'clipboard': {'matchVisual': False}},
             )
-        ], style={'height': 640}
+        ], style={'display': 'inline-block', 'height': 640}
         ),
         html.Div([
             html.Button('保存',
@@ -109,7 +108,6 @@ def get_doclink_from_url(pathname, search, href):
     else:
         paper_id = state.current_paper
     log(f'callback get_doclink_from_url(): paper_id={paper_id}')
-    # return get_doclink(paper_id), get_comments(paper_id)
     return f'/pdf/{paper_id}', get_comments(paper_id), paper_id
 
 
