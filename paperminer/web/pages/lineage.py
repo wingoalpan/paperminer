@@ -627,7 +627,7 @@ def update_output(value):
 
 
 @callback(Output('has_dblclick_on_citations', 'data', allow_duplicate=True),
-          [Input('dblclick_references', 'event')],
+          [Input('dblclick_citations', 'event')],
           prevent_initial_call=True,
           suppress_callback_exceptions=True
           )

@@ -7,7 +7,7 @@ import pandas as pd
 import json as js
 import wingoal_utils.common as cm
 
-g_db_name = os.path.join(os.path.dirname(__file__), 'papers.db')
+g_db_name = os.path.join(os.path.dirname(__file__), 'db/papers.db')
 
 
 def set_db_name(db_name):

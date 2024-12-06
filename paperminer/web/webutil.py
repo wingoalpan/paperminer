@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-import os
+import sys
 import threading
 import time
 import copy
@@ -10,6 +10,8 @@ from dash import dcc
 from dash import html
 from dash import dash_table
 import dash_bootstrap_components as dbc
+
+sys.path.append('..')
 
 import paperdb as db
 import schedule

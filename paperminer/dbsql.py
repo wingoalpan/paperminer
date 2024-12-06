@@ -23,7 +23,7 @@ import paperdb as db
 
 set_log_file(os.path.split(__file__)[-1], timestamp=True)
 
-db.set_db_name('./papers.db')
+# db.set_db_name('./papers.db')
 
 
 def main():

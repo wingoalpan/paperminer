@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
 import os
+import sys
 import dash
 import dash_bootstrap_components as dbc
 from flask import Flask
 from flask import send_from_directory
-
 from wingoal_utils.common import (set_log_file, log)
 import webutil as util
+
+sys.path.append('..')
 import papersearch as ps
+from schedule import get_papers_pdf_dir
 
 set_log_file(os.path.split(__file__)[-1], timestamp=True)
 
@@ -45,7 +48,7 @@ app_paper_browse.layout = dbc.Container(
 @app_paper_browse.server.route('/pdf/<paper_id>')
 def send_pdf(paper_id):
     log(f'callback server.send_pdf(): enter.')
-    papers_pdf_dir = '../papers'
+    papers_pdf_dir = get_papers_pdf_dir()
     paper = state.get_paper(paper_id)
     if paper:
         paper_pdf = paper.get('paper_pdf', None)

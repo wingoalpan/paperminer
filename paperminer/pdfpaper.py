@@ -252,20 +252,20 @@ def split_page_to_blocks(page_text_lines):
 #    1. 纵坐标y1四舍五入后按纵坐标y1从大到小排序（即从上到下）
 #    2. 从前至后遍历所有文本纵坐标y1, 每个文本y1若与前一文本y1只差小于等于1，则更其y1与前一文本y1对齐（更新为前文本y1）
 #    3. 所有文本按校正后的 y1坐标（逆序）+ x0坐标（顺序）排序。
-def rearrange(_text_lines, sorted_on_y1=True):
+def rearrange(_text_lines, sorted_on_y0=True):
     # 如果传入的_text_lines 是没有按y1排序的，则先排序再校正
-    if not sorted_on_y1:
-        _text_lines.sort(key=lambda a: round(a[0][0]), reverse=True)
-    prev_y1 = None
+    if not sorted_on_y0:
+        _text_lines.sort(key=lambda a: round(a[0][2]), reverse=True)
+    prev_y0 = None
     for text_line in _text_lines:
-        if prev_y1 is None:
-            prev_y1 = round(text_line[0][0])
-        cur_y1 = round(text_line[0][0])
-        if prev_y1 - cur_y1 <= 1:
-            cur_y1 = prev_y1
+        if prev_y0 is None:
+            prev_y0 = round(text_line[0][2])
+        cur_y0 = round(text_line[0][2])
+        if prev_y0 - cur_y0 <= 1:
+            cur_y0 = prev_y0
         # 添加处理后的坐标，用于排序索引
-        text_line.append((cur_y1, 1000-text_line[0][1]))
-        prev_y1 = cur_y1
+        text_line.append((cur_y0, 1000-text_line[0][1]))
+        prev_y0 = cur_y0
     _text_lines.sort(key=lambda a: [a[3][0], a[3][1]], reverse=True)
 
 
@@ -590,7 +590,7 @@ def extract_refs(arranged_text_lines, ref_format):
     # pattern for RefFormat.REF_NO,
     pat1 = r'\[(?P<ref_no>\d*)\] [\s\S]*'
     # pattern for RefFormat.REF_ID,
-    pat2 = r'\[(?P<ref_id>\S*)\] [\s\S]*'
+    pat2 = r'\[(?P<ref_id>\S*)\][\n\s\S]*'
     # pattern for RefFormat.REF_NUM_DOT
     pat3 = r'(?P<ref_no>\d*)\. [\s\S]*'
     cur_ref = []

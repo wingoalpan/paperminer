@@ -1,6 +1,10 @@
 #!C:\Users\pypy2\AppData\Local\Programs\Python\Python311\python.exe
 
+import os
+import sys
 import re
+
+sys.path.append(os.path.dirname(__file__))
 import pdfpaper as pp
 from wingoal_utils.common import log
 
@@ -97,7 +101,7 @@ def _extract_authors_candidates(ref_text):
     #pat_words_abbr = r'(((des\s)|(van\s)|(den\s)|(de\s)|(las\s))*([A-Z][\w\-´¸¨˜`]+)(\s[A-Z][\w\-´¸¨˜`]+)*\,(\s[A-ZŁ]\.)([\s-][A-Za-z]\.)*)'
     #pat_abbrs_words = r'(([A-Z][a-z]?[\.]?)([\s-][A-Za-zÁ][\.]?)*\s([A-Z][\w\-´¸¨˜`]+)((\svon)|(\sden))*(\s[A-Z][\w\-´¸¨˜`]+)*)'
     pat_word_abbr_word = r'(([A-Z][\w\-´¸¨˜`]+)+\s([A-Za-z][\.]?\s)+([A-Z][\w\-´¸¨˜`]+))'
-    pat_words = r'(([A-Z`Ł][\w\-´¸¨˜`]+)(\s[A-Z][\w\-´¸¨˜`]+)+)'
+    pat_words = r'(([A-Z`Ł][\w\-´`ˆ¨˜’¸]+)(\s[A-Z][\w\-´`ˆ¨˜’¸]+)+)'
     pat_prep_words = r'(([A-Z][\w\-´¸¨˜`]+\s)+((von\s)|(van\s)|(den\s)|(del\s)|(der\s)|(de\s)|(tau\s))+([A-Z][\w\-´¸¨˜`]+)(\s[A-Z][\w\-´¸¨˜`]+)*)'
     # example: [Mac92] David. MacKay. Information-based objective functions for active data selection. Neural Computation, 1992.
     pat_ex_abbrs_words = r'(([A-Z][\w]+[\.])\s([A-Z][\w\-´¸¨˜`]+))'

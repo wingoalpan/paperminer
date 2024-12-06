@@ -4,17 +4,29 @@ import os
 import time
 import json as js
 from enum import Enum
-
+import sys
+sys.path.append(os.path.dirname(__file__))
 import wingoal_utils.common as cm
 import papersearch as ps
 import paperdb as db
 import paperef
 from wingoal_utils.common import (
+    load_json,
     log
 )
 
 
-g_papers_pdf_dir = os.path.join(os.path.dirname(__file__), '../papers')
+def read_paper_dir_config():
+    config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+    if os.path.exists(config_file):
+        config = load_json(config_file)
+        papers_dir = config.get('papers_dir', None)
+        if papers_dir and os.path.exists(papers_dir):
+            return os.path.abspath(papers_dir)
+    return os.path.join(os.path.dirname(__file__), '../papers')
+
+
+g_papers_pdf_dir = read_paper_dir_config()
 
 
 class RetCode(Enum):
@@ -23,7 +35,6 @@ class RetCode(Enum):
     Pending = 3
     Retry = 4
     NetworkFail = 5
-
 
 
 def set_papers_pdf_dir(papers_pdf_dir):
