@@ -12,9 +12,9 @@ from dash import dash_table
 import dash_bootstrap_components as dbc
 
 sys.path.append('..')
-
-import paperdb as db
-import schedule
+sys.path.append('../..')
+import paperminer.paperdb as db
+import paperminer.schedule as schedule
 
 import wingoal_utils.common as cm
 from wingoal_utils.common import log

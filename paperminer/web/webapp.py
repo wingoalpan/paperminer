@@ -7,6 +7,9 @@ import dash_bootstrap_components as dbc
 from flask import Flask
 from flask import send_from_directory
 from wingoal_utils.common import (set_log_file, log)
+from waitress import serve
+
+sys.path.append(os.path.dirname(__file__))
 import webutil as util
 
 sys.path.append('..')
@@ -62,6 +65,10 @@ def send_pdf(paper_id):
         log(f'server.send_pdf(): Invalid paper (paper_id={paper_id}) requested. ')
 
     return None
+
+
+def start():
+    serve(server, host='0.0.0.0', port=8050, url_scheme='https')
 
 
 if __name__ == '__main__':

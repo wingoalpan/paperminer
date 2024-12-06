@@ -8,7 +8,6 @@ import json as js
 
 import pandas as pd
 
-import wingoal_utils.common as cm
 from wingoal_utils.common import (
     set_log_file,
     log,
@@ -18,16 +17,12 @@ from wingoal_utils.common import (
     time_str
 )
 sys.path.append('..')
-import paperdb as db
+import paperminer.paperdb as db
 
 
 set_log_file(os.path.split(__file__)[-1], timestamp=True)
 
 # db.set_db_name('./papers.db')
-
-
-def main():
-    print('')
 
 
 def _save_excel(rows, file_path, template='template-generic.xlsx'):
@@ -55,7 +50,7 @@ def sql(sql_str, file_path=None):
         rows = db.query_rows_dict(sql_str)
         print(f'\nTotal {len(rows)} rows returned!\n')
         if file_path and file_path.endswith('.json'):
-            cm.save_json(rows, file_path)
+            save_json(rows, file_path)
             print(f'Saved to file {file_path}!')
         elif file_path and file_path.endswith('.xlsx'):
             _save_excel(rows, file_path)
@@ -75,14 +70,32 @@ def sqlf(sql_file, file_path=None):
     sql(sql_str, file_path)
 
 
-def export(table_name=None):
+def export(table_name=None, excel_file_name=None):
     if table_name is None:
         db.export_excel('papers', template='template/template-export_papers.xlsx')
         db.export_excel('refs', template='template/template-export_refs.xlsx')
     if table_name == 'papers':
-        db.export_excel('papers', template='template/template-export_papers.xlsx')
+        db.export_excel('papers', excel_file_name=excel_file_name, template='template/template-export_papers.xlsx')
     if table_name == 'refs':
-        db.export_excel('refs', template='template/template-export_refs.xlsx')
+        db.export_excel('refs', excel_file_name=excel_file_name, template='template/template-export_refs.xlsx')
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("params", nargs="*")
+    args = parser.parse_args()
+    start_timer()
+    if len(args.params) == 0:
+        log('no operation selected!')
+    else:
+        func = args.params[0]
+        if func != 'main':
+            set_log_file(os.path.split(__file__)[-1], suffix=func, timestamp=True)
+        param_list = args.params[1:]
+        log('executing function [%s] ...' % func)
+        eval(func)(*param_list)
+    elapse = time_elapse()[0]
+    log(f'finish executing function! [{"%.6f" % elapse} seconds elapsed]')
 
 
 if __name__ == "__main__":

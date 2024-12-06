@@ -15,9 +15,6 @@ import hashlib
 import wingoal_utils.common as cm
 from wingoal_utils.common import log
 
-from langchain_community.tools.google_scholar import GoogleScholarQueryRun
-from langchain_community.utilities.google_scholar import GoogleScholarAPIWrapper
-
 g_cookies_jar = None
 
 
