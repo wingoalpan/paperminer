@@ -20,7 +20,7 @@ from wingoal_utils.common import (
     time_str
 )
 sys.path.append('..')
-import pdfpaper as pp
+from paperminer import pdfpaper as pp
 
 
 def test_merge_line():
@@ -59,6 +59,7 @@ def test_header_footer_alike():
     pdf_path = '../../papers/2010.09233v2(Auto-Encoding Variational Bayes for Inferring Topics and Visualization).pdf'
     #无页眉有页码
     pdf_path = '../../papers/2211.09117v2(MAGE- MAsked Generative Encoder to Unify Representation Learning and Image Synthesis).pdf'
+    pdf_path = '../../papers/1312.6114v11(Auto-Encoding Variational Bayes).pdf'
     pdf_pages = pp.parse_pdf(pdf_path)
     header_y, footer_y = pp.get_header_footer_y(pdf_pages)
     for page_no in range(len(pdf_pages)):
@@ -89,6 +90,7 @@ def test_parse_refs():
     # page_no, pdf_path = 8, '../../papers/2211.09117v2(MAGE- MAsked Generative Encoder to Unify Representation Learning and Image Synthesis).pdf'
     # page_no, pdf_path = 9, '../../papers/2210.17323v2(GPTQ- Accurate Post-Training Quantization for Generative Pre-trained Transformers).pdf'
     # page_no, pdf_path = 32, '../../papers/Multitask_lea_001882(Multitask learning).pdf'
+    page_no, pdf_path = 8, '../../papers/1312.6114v11(Auto-Encoding Variational Bayes).pdf'
     pdf_pages = pp.parse_pdf(pdf_path)
     refs = pp.parse_refs(pdf_pages)
     print(js.dumps(refs, indent=2, ensure_ascii=False))

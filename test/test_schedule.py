@@ -20,12 +20,12 @@ from wingoal_utils.common import (
     time_str
 )
 sys.path.append('..')
-import paperdb as db
-import schedule
+from paperminer import paperdb as db
+from paperminer import schedule
 
 set_log_file(os.path.split(__file__)[-1], timestamp=True)
 
-db.set_db_name('../papers.db')
+# db.set_db_name('../papers.db')
 
 
 def test_verify_reference():
@@ -53,6 +53,7 @@ def test_extract_references():
     # paper_list = db.table_conditions('papers', {'paper_id': 'GS_Multitask_lea_001882'})
     # 没有缩进，通过行间距来分割不同Reference； 用分号';'来分割作者
     paper_list = db.table_conditions('papers', {'paper_id': 'GS_Ethical_Consi_29749c'})
+    paper_list = db.table_conditions('papers', {'paper_id': 'arXiv_1312.6114'})
 
     paper = paper_list[0]
     schedule.extract_references(paper, drill=True)

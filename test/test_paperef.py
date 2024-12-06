@@ -20,7 +20,7 @@ from wingoal_utils.common import (
     time_str
 )
 sys.path.append('..')
-import paperef as pr
+from paperminer import paperef as pr
 
 
 def _extract_authors_candidates(ref_text):
@@ -33,7 +33,7 @@ def _extract_authors_candidates(ref_text):
     #pat_words_abbr = r'(((des\s)|(van\s)|(den\s)|(de\s)|(las\s))*([A-Z][\w\-´¸¨˜`]+)(\s[A-Z][\w\-´¸¨˜`]+)*\,(\s[A-ZŁ]\.)([\s-][A-Za-z]\.)*)'
     #pat_abbrs_words = r'(([A-Z][a-z]?[\.]?)([\s-][A-Za-zÁ][\.]?)*\s([A-Z][\w\-´¸¨˜`]+)((\svon)|(\sden))*(\s[A-Z][\w\-´¸¨˜`]+)*)'
     pat_word_abbr_word = r'(([A-Z][\w\-´¸¨˜`]+)+\s([A-Za-z][\.]?\s)+([A-Z][\w\-´¸¨˜`]+))'
-    pat_words = r'(([A-Z`Ł][\w\-´¸¨˜`]+)(\s[A-Z][\w\-´¸¨˜`]+)+)'
+    pat_words = r'(([A-Z`Ł][\w\-´`ˆ¨˜’¸]+)(\s[A-Z][\w\-´`ˆ¨˜’¸]+)+)'
     pat_prep_words = r'(([A-Z][\w\-´¸¨˜`]+\s)+((von\s)|(van\s)|(den\s)|(del\s)|(der\s)|(de\s)|(tau\s))+([A-Z][\w\-´¸¨˜`]+)(\s[A-Z][\w\-´¸¨˜`]+)*)'
     # example: [Mac92] David. MacKay. Information-based objective functions for active data selection. Neural Computation, 1992.
     pat_ex_abbrs_words = r'(([A-Z][\w]+[\.])\s([A-Z][\w\-´¸¨˜`]+))'
@@ -95,8 +95,9 @@ def test_extract_authors_candidates():
 
 
 def test_get_ref_base_data():
-    ref_text = 'Dunphy, E. J.; Conlon, S. C.; O’Brien, S. A.; Loughrey, E.; and O’Shea, B. J. 2016. End-of-life planning with frail patients attending general practice: an exploratory prospective cross-sectional study. British Journal of General Practice, 66(650): e661–e666.'
-    authors_candidates = pr._extract_authors_candidates(ref_text)
+    # ref_text = 'Dunphy, E. J.; Conlon, S. C.; O’Brien, S. A.; Loughrey, E.; and O’Shea, B. J. 2016. End-of-life planning with frail patients attending general practice: an exploratory prospective cross-sectional study. British Journal of General Practice, 66(650): e661–e666.'
+    ref_text = '[KRL08] Koray Kavukcuoglu, Marc’Aurelio Ranzato, and Yann LeCun. Fast inference in sparse coding algorithms with applications to object recognition. Technical Report CBLLTR-2008-12-01, Computational and Biological Learning Lab, Courant Institute, NYU, 2008.'
+    authors_candidates = _extract_authors_candidates(ref_text)
     print(js.dumps(authors_candidates, indent=2, ensure_ascii=False))
     nrec = pr.get_ref_base_data(ref_text)
     print(js.dumps(nrec, indent=2, ensure_ascii=False))
