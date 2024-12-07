@@ -102,6 +102,7 @@ setup(
             'pdfminer.six>=20240706',
             'dash_quill>=0.0.4',
             'dash_extensions>=1.0.19',
+            'wingoal_utils@https://github.com/wingoalpan/wingoal_utils/tarball/main'
     ],
     zip_safe=True,
 )
