@@ -12,7 +12,7 @@ from waitress import serve
 sys.path.append(os.path.dirname(__file__))
 import webutil as util
 
-sys.path.append('..')
+sys.path.insert(0, '..')
 import papersearch as ps
 from schedule import get_papers_pdf_dir
 

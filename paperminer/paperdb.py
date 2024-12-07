@@ -7,7 +7,20 @@ import pandas as pd
 import json as js
 import wingoal_utils.common as cm
 
-g_db_name = os.path.join(os.path.dirname(__file__), 'db/papers.db')
+g_db_name = None
+
+
+def get_db_name():
+    global g_db_name
+    if g_db_name is not None:
+        return g_db_name
+    user_dir = os.path.expanduser('~')
+    db_path = os.path.join(user_dir, '.paperminer/db/papers.db')
+    if os.path.exists(db_path):
+        g_db_name = db_path
+    else:
+        g_db_name = os.path.join(os.path.dirname(__file__), 'db/papers.db')
+    return g_db_name
 
 
 def set_db_name(db_name):
@@ -16,7 +29,8 @@ def set_db_name(db_name):
 
 
 def get_db_conn():
-    return sqlite3.connect(g_db_name)
+    db_name = get_db_name()
+    return sqlite3.connect(db_name)
 
 
 def execute_sql(sql):
@@ -259,10 +273,6 @@ def import_excel(table_name, excel_file_name, sheet_name=None):
 
 
 def export_excel(table_name, excel_file_name=None, sheet_name=None, template=None):
-    if excel_file_name is None:
-        excel_file_name = f'output/export_{table_name}-{cm.time_stamp()}.xlsx'
-    elif not os.path.dirname(excel_file_name):
-        excel_file_name = os.path.join('output', excel_file_name)
     pd_export = pd.DataFrame()
     rows = table_rows_dict(table_name)
     for row in rows:

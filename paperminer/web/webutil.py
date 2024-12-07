@@ -11,8 +11,8 @@ from dash import html
 from dash import dash_table
 import dash_bootstrap_components as dbc
 
-sys.path.append('..')
-sys.path.append('../..')
+sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 import paperminer.paperdb as db
 import paperminer.schedule as schedule
 

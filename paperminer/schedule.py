@@ -15,18 +15,7 @@ from wingoal_utils.common import (
     log
 )
 
-
-def read_paper_dir_config():
-    config_file = os.path.join(os.path.dirname(__file__), 'config.json')
-    if os.path.exists(config_file):
-        config = load_json(config_file)
-        papers_dir = config.get('papers_dir', None)
-        if papers_dir and os.path.exists(papers_dir):
-            return os.path.abspath(papers_dir)
-    return os.path.join(os.path.dirname(__file__), '../papers')
-
-
-g_papers_pdf_dir = read_paper_dir_config()
+g_papers_pdf_dir = None
 
 
 class RetCode(Enum):
@@ -37,13 +26,26 @@ class RetCode(Enum):
     NetworkFail = 5
 
 
+def get_papers_pdf_dir():
+    global g_papers_pdf_dir
+    if g_papers_pdf_dir is not None:
+        return g_papers_pdf_dir
+    user_dir = os.path.expanduser('~')
+    config_file = os.path.join(user_dir, '.paperminer/config.json')
+    if not os.path.exists(config_file):
+        config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+    if os.path.exists(config_file):
+        config = load_json(config_file)
+        papers_dir = config.get('papers_dir', None)
+        if papers_dir and os.path.exists(papers_dir):
+            g_papers_pdf_dir = os.path.abspath(papers_dir)
+    g_papers_pdf_dir = os.path.join(os.path.dirname(__file__), '../papers')
+    return g_papers_pdf_dir
+
+
 def set_papers_pdf_dir(papers_pdf_dir):
     global g_papers_pdf_dir
-    g_papers_pdf_dir = papers_pdf_dir
-
-
-def get_papers_pdf_dir():
-    return g_papers_pdf_dir
+    g_papers_pdf_dir = os.path.abspath(papers_pdf_dir)
 
 
 def complete_paper_data(max_refs_num=-1, start=0):
